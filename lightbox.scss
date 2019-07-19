@@ -1,0 +1,167 @@
+.modal-backdrop.show {
+    opacity: 0.8;
+}
+
+.lightbox.modal {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding-right: 0px !important;
+
+    .modal {
+        &-content {
+        }
+
+        &-header {
+            // display: none;
+        }
+
+        &-footer {
+            // display: none;
+        }
+
+        &-body {
+            width: 100%;
+            padding: 0;
+            z-index: 100;
+        }
+
+        &-container {
+            position: relative;
+
+            > .modal-item {
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                width: 100%;
+            }
+        }
+    }
+
+    iframe {
+        width: 100%;
+        height: 100%;
+    }
+
+    .navigations {
+        z-index: 100;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+
+        button {
+            background: transparent;
+            border: 0;
+
+            color: #fff;
+            font: inherit;
+
+            /* Normalize `line-height`. Cannot be changed from `normal` in Firefox 4+. */
+            line-height: normal;
+
+            /* Corrects font smoothing for webkit */
+            -webkit-font-smoothing: inherit;
+            -moz-osx-font-smoothing: inherit;
+
+            /* Corrects inability to style clickable `input` types in iOS */
+            -webkit-appearance: none;
+
+            outline: none;
+
+            flex: 1 1 auto;
+            text-align: left;
+            font-size: 30px;
+            opacity: 0;
+            transition: opacity 0.5s;
+
+            + button {
+                text-align: right;
+            }
+
+            span {
+                padding: 30px;
+            }
+
+            &.disabled {
+                cursor: default;
+                visibility: hidden;
+            }
+        }
+
+        button:hover {
+            opacity: 1;
+        }
+    }
+
+    .close {
+        display: none;
+        position: absolute;
+        z-index: 100;
+        left: 100%;
+        top: 5px;
+        transform: translateX(-70%);
+        padding-bottom: 5px;
+        width: 50px;
+        height: 50px;
+        background: rgba(255, 255, 255, 0.2);
+        outline: none;
+        transition: .8s ease .8s;
+        text-shadow: none;
+        color: #fff;
+
+        &:hover {
+            transition: .4s ease;
+        }
+    }
+
+    .modal-content:hover .close {
+        transform: translateX(0%);
+    }
+
+    &.in .close {
+        display: block;
+    }
+
+    + .modal-backdrop {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        // preloader by https://tobiasahlin.com/spinkit/
+        .preloader {
+            width: 40px;
+            height: 40px;
+            background-color: #ccc;
+
+            margin: 100px auto;
+            -webkit-animation: sk-rotateplane 1.2s infinite ease-in-out;
+            animation: sk-rotateplane 1.2s infinite ease-in-out;
+        }
+
+        @-webkit-keyframes sk-rotateplane {
+            0% { -webkit-transform: perspective(120px) }
+            50% { -webkit-transform: perspective(120px) rotateY(180deg) }
+            100% { -webkit-transform: perspective(120px) rotateY(180deg)  rotateX(180deg) }
+        }
+
+        @keyframes sk-rotateplane {
+            0% {
+                transform: perspective(120px) rotateX(0deg) rotateY(0deg);
+                -webkit-transform: perspective(120px) rotateX(0deg) rotateY(0deg)
+            }
+            50% {
+                transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg);
+                -webkit-transform: perspective(120px) rotateX(-180.1deg) rotateY(0deg)
+            }
+            100% {
+                transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
+                -webkit-transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
+            }
+        }
+    }
+}
