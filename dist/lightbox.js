@@ -338,20 +338,30 @@ var Lightbox = function ($) {
           if (!self.touch.start) return; // update data
 
           self.touch.data = event.originalEvent.touches ? event.originalEvent.touches[0] : event;
-          self.touch.stop = [self.touch.data.pageX, self.touch.data.pageY]; // prevent scrolling
+          self.touch.stop = [self.touch.data.pageX, self.touch.data.pageY]; // @TODO check this clicable elements (as a or button)
+
+          event.preventDefault(); // prevent scrolling
 
           if (Math.abs(self.touch.start[1] - self.touch.stop[1]) > 10) {
-            event.preventDefault();
-            $('button', self.$arrows).addClass('disabled').attr('disabled', 'disabled');
+            if (self.$arrows) {
+              $('button', self.$arrows).addClass('disabled').attr('disabled', 'disabled');
+            }
+
             self.$container.addClass('touched').addClass('touched-vertical');
             verticalMove();
           }
 
           if (Math.abs(self.touch.start[0] - self.touch.stop[0]) > 10) {
-            event.preventDefault();
-            $('button', self.$arrows).addClass('disabled').attr('disabled', 'disabled');
-            self.$container.addClass('touched').addClass('touched-horizontal');
-            horizontalMove();
+            if (self.$items.length > 1) {
+              if (self.$arrows) {
+                $('button', self.$arrows).addClass('disabled').attr('disabled', 'disabled');
+              }
+
+              self.$container.addClass('touched').addClass('touched-horizontal');
+              horizontalMove();
+            } else {
+              moveStop(event);
+            }
           }
         }
 
@@ -490,8 +500,10 @@ var Lightbox = function ($) {
             });
             $containerForImage.html(image);
 
-            _this2.$arrows.css('display', ''); // remove display to default to css property
+            if (_this2.$arrows) {
+              _this2.$arrows.css('display', ''); // remove display to default to css property
 
+            }
 
             _this2._resize(img.width, img.height);
 
@@ -583,7 +595,7 @@ var Lightbox = function ($) {
     }, {
       key: "_navigateUpdate",
       value: function _navigateUpdate() {
-        if (!this.config.opts.infinite) {
+        if (!this.config.opts.infinite && this.$arrows) {
           if (this.galleryIndex === 0) {
             $('button:first-child', this.$arrows).addClass('disabled').attr('disabled', 'disabled');
           } else {

@@ -267,14 +267,16 @@ const Lightbox = (($) => {
                             event;
 
                         self.touch.stop = [ self.touch.data.pageX, self.touch.data.pageY ];
+                        // @TODO check this clicable elements (as a or button)
+                        event.preventDefault();
 
                         // prevent scrolling
                         if( Math.abs(self.touch.start[1] - self.touch.stop[1]) > 10 ) {
-                            event.preventDefault();
-
-                            $('button', self.$arrows)
-                                .addClass('disabled')
-                                .attr('disabled', 'disabled');
+                            if( self.$arrows ) {
+                                $('button', self.$arrows)
+                                    .addClass('disabled')
+                                    .attr('disabled', 'disabled');
+                            }
 
                             self.$container
                                 .addClass('touched')
@@ -284,17 +286,22 @@ const Lightbox = (($) => {
                         }
 
                         if (Math.abs(self.touch.start[0] - self.touch.stop[0]) > 10) {
-                            event.preventDefault();
+                            if( self.$items.length > 1 ) {
+                                if( self.$arrows ) {
+                                    $('button', self.$arrows)
+                                        .addClass('disabled')
+                                        .attr('disabled', 'disabled');
+                                }
 
-                            $('button', self.$arrows)
-                                .addClass('disabled')
-                                .attr('disabled', 'disabled');
+                                self.$container
+                                    .addClass('touched')
+                                    .addClass('touched-horizontal');
 
-                            self.$container
-                                .addClass('touched')
-                                .addClass('touched-horizontal');
-
-                            horizontalMove();
+                                horizontalMove();
+                            }
+                            else {
+                                moveStop(event);
+                            }
                         }
                     }
 
@@ -432,7 +439,9 @@ const Lightbox = (($) => {
                     });
 
                     $containerForImage.html(image);
-                    this.$arrows.css('display', '') // remove display to default to css property
+                    if( this.$arrows ) {
+                        this.$arrows.css('display', '') // remove display to default to css property
+                    }
 
                     this._resize(img.width, img.height);
                     this.toggleLoading(false);
@@ -519,7 +528,7 @@ const Lightbox = (($) => {
         }
 
         _navigateUpdate() {
-            if (!this.config.opts.infinite) {
+            if (!this.config.opts.infinite && this.$arrows) {
                 if (this.galleryIndex === 0) {
                     $('button:first-child', this.$arrows)
                         .addClass('disabled')
