@@ -47,6 +47,42 @@ const Lightbox = (($) => {
             return Default;
         }
 
+        getLangString(stringKey) {
+            if( this.config.i18[ this.config.lang ][ stringKey ] ) {
+                return this.config.i18[ this.config.lang ][ stringKey ];
+            }
+
+            return stringKey
+                // insert a space before all caps
+                .replace(/([A-Z])/g, ' $1')
+                .toLowerCase()
+                // uppercase the first character
+                .replace(/^./, function(str) { return str.toUpperCase(); })
+        }
+
+        error(message, subMessage) {
+            message = getLangString(message);
+
+            if( subMessage ) {
+                message+= ': ' + subMessage;
+            }
+
+            console.error(message);
+            this._containerToUse().html(message);
+            this._resize(500, 180);
+            return this;
+        }
+
+        _hotkeys(event) {
+            event = event || window.event;
+            if (event.keyCode === 39 || event.keyCode === 32)
+                return this.navigateRight();
+            if (event.keyCode === 37 || event.keyCode === 8)
+                return this.navigateLeft();
+            if (event.keyCode === 27)
+                return this.close();
+        }
+
         constructor($target, config) {
             this.config = $.extend({}, __default, config);
             this.$arrows = null;
@@ -56,8 +92,19 @@ const Lightbox = (($) => {
             // this._footerIsShown = false;
             this.remindLastWidth = 0;
             this.remindLastHeight = 0;
-            // this._touchstartX = 0;
-            // this._touchendX = 0;
+
+            this.touch = {
+                data: {},
+                start: {},
+                stop: {},
+                support: $.support.touch,
+                event: {}
+            }
+
+            this.touch.event.scroll = "touchmove scroll";
+            this.touch.event.start  = this.touch.support ? "touchstart" : "mousedown";
+            this.touch.event.stop   = this.touch.support ? "touchend" : "mouseup";
+            this.touch.event.move   = this.touch.support ? "touchmove" : "mousemove";
 
             this.modalId = 'modal-' + Math.floor((Math.random() * 1000) + 1); // this.config.id ||
 
@@ -107,7 +154,7 @@ const Lightbox = (($) => {
                 // this element current position
                 this.galleryIndex = this.$items.index(this.$element);
                 // set hotkeys on lightbox
-                $(document).on('keydown.bs.lightbox', this.hotkeys.bind(this))
+                $(document).on('keydown.bs.lightbox', this._hotkeys.bind(this))
                 // add the directional arrows to the modal
                 if (this.config.opts.arrows && this.$items.length > 1) {
                     this.$container.append('<div class="navigations">'
@@ -118,16 +165,21 @@ const Lightbox = (($) => {
                     this.$arrows = $('.navigations', this.$container);
 
                     this.$container.on('click', 'button:first-child', event => {
-                        event.preventDefault();
-                        return this.navigateLeft();
+                        if( !this.$container.hasClass('touched') ) {
+                            event.preventDefault();
+                            return this.navigateLeft();
+                        }
                     });
 
                     this.$container.on('click', 'button:last-child', event => {
-                        event.preventDefault();
-                        return this.navigateRight();
+                        console.log('click', this.$container.hasClass('touched'));
+                        if( !this.$container.hasClass('touched') ) {
+                            event.preventDefault();
+                            return this.navigateRight();
+                        }
                     });
 
-                    this.navigateUpdate();
+                    this._navigateUpdate();
                 }
             }
 
@@ -140,8 +192,8 @@ const Lightbox = (($) => {
                 .on('show.bs.modal', this.config.onShow.bind(this))
                 // call onShown after modal opened
                 .on('shown.bs.modal', () => {
-                    this.togglePreloader(true);
-                    this._handle();
+                    this.toggleLoading(true);
+                    this.open();
                     return this.config.onShown.call(this);
                 })
                 // call onHide on modal close
@@ -165,125 +217,177 @@ const Lightbox = (($) => {
             /**
              * Touch/Swipe events
              */
-            this.touch = {
-                data: {},
-                start: {},
-                stop: {},
-                support: $.support.touch,
-                event: {}
-            }
-
-            this.touch.event.scroll = "touchmove scroll";
-            this.touch.event.start  = this.touch.support ? "touchstart" : "mousedown";
-            this.touch.event.stop   = this.touch.support ? "touchend" : "mouseup";
-            this.touch.event.move   = this.touch.support ? "touchmove" : "mousemove";
-
-            let touch = this.touch;
-
             this.$dialog
-                .on(touch.event.start, (event) => {
+                .on(this.touch.event.start, (event) => {
                     let self = this;
-                    // this._touchstartX = event.changedTouches[0].screenX;
                     // event data
-                    touch.data = event.originalEvent.touches ?
+                    self.touch.data = event.originalEvent.touches ?
                         event.originalEvent.touches[ 0 ] :
                         event;
                     // start data
-                    touch.start = [ touch.data.pageX, touch.data.pageY ];
+                    self.touch.start = [ self.touch.data.pageX, self.touch.data.pageY ];
                     // origin: $(event.target)
 
                     self.$dialog
                         // move object in touch
-                        .bind(touch.event.move, moveHandler)
+                        .bind(self.touch.event.move, moveHandler);
+
                     // call stop on touch end\mouse up
-                    $(document).one(touch.event.stop, self.$dialog, moveStop);
+                    $(document).one(self.touch.event.stop, self.$dialog, moveStop);
                     $(document).on('mouseleave', self.$dialog, moveStop);
 
-                    function moveHandler(event) {
-                        if (!touch.start) return;
-                        // update data
-                        touch.data = event.originalEvent.touches ?
-                                event.originalEvent.touches[ 0 ] :
-                                event;
+                    var isVertical = false;
+                    var isHorizontal = false;
 
-                        touch.stop = [ touch.data.pageX, touch.data.pageY ];
-
-                        // prevent scrolling
-                        if (Math.abs(touch.start[1] - touch.stop[1]) > 10) {
-                            event.preventDefault();
-
-                            // hide arrows on swipe
-                            $('button', self.$arrows).addClass('disabled').attr('disabled', 'disabled');
-                        }
+                    function verticalMove() {
+                        if( !!isHorizontal ) return;
+                        isVertical = true;
 
                         self.$dialog.css({
-                            'transform': 'translateY(' + -(touch.start[1] - touch.data.pageY) + 'px)',
+                            'transform': 'translateY(' + -(self.touch.start[1] - self.touch.data.pageY) + 'px)',
                             'transition': 'none'
                         });
                     }
 
+                    function horizontalMove() {
+                        if( !!isVertical ) return;
+                        isHorizontal = true;
+
+                        self.$dialog.css({
+                            'transform': 'translateX(' + -(self.touch.start[0] - self.touch.data.pageX) + 'px)',
+                            'transition': 'none'
+                        });
+                    }
+
+                    function moveHandler(event) {
+                        if (!self.touch.start) return;
+                        // update data
+                        self.touch.data = event.originalEvent.touches ?
+                            event.originalEvent.touches[ 0 ] :
+                            event;
+
+                        self.touch.stop = [ self.touch.data.pageX, self.touch.data.pageY ];
+
+                        // prevent scrolling
+                        if( Math.abs(self.touch.start[1] - self.touch.stop[1]) > 10 ) {
+                            event.preventDefault();
+
+                            $('button', self.$arrows)
+                                .addClass('disabled')
+                                .attr('disabled', 'disabled');
+
+                            self.$container
+                                .addClass('touched')
+                                .addClass('touched-vertical');
+
+                            verticalMove();
+                        }
+
+                        if (Math.abs(self.touch.start[0] - self.touch.stop[0]) > 10) {
+                            event.preventDefault();
+
+                            $('button', self.$arrows)
+                                .addClass('disabled')
+                                .attr('disabled', 'disabled');
+
+                            self.$container
+                                .addClass('touched')
+                                .addClass('touched-horizontal');
+
+                            horizontalMove();
+                        }
+                    }
+
                     function moveStop( event ) {
                         // reset move event
-                        self.$dialog.unbind(touch.event.move, moveHandler);
+                        self.$dialog.unbind(self.touch.event.move, moveHandler);
                         // data exists
-                        if (touch.start && touch.stop) {
-                            // && Math.abs(touch.start[0] - touch.stop[0]) < 75
-                            if ( Math.abs(touch.start[1] - touch.stop[1]) > 30 ) {
-                                self.$dialog.css('transition', '');
-                                self.$modal.modal('hide');
+                        if (self.touch.start[0] !== undefined && self.touch.stop[0] !== undefined) {
+                            if( isHorizontal ) {
+                                if ( Math.abs(self.touch.start[0] - self.touch.stop[0]) > 30 ) {
+                                    if( self.touch.start[0] > self.touch.stop[0] ) {
+                                        self.navigateRight();
+                                    }
+                                    else {
+                                        self.navigateLeft();
+                                    }
+                                }
+                            }
 
-                                // do not toggle navigation
-                                self.$container.off('click');
-                                touch.start = [];
-                                touch.stop = [];
+                            // is vertical move stop
+                            if( isVertical ) {
+                                if ( Math.abs(self.touch.start[1] - self.touch.stop[1]) > 30 ) {
+                                    self.$dialog.css('transition', '');
+                                    self.$modal.modal('hide');
+                                }
+                                else {
+                                    self.$dialog.css('transform', 'translate(0, 0)');
+                                }
                             }
                             else {
-                                self.$dialog.css('transform', 'translateY(0px)');
+                                self.$dialog.css('transform', 'translate(0, 0)');
                             }
                         }
 
-                        self.navigateUpdate();
+                        // disable after click event (for arrows disabled)
+                        setTimeout(function() {
+                            self.$container
+                                .removeClass('touched')
+                                .removeClass('touched-vertical')
+                                .removeClass('touched-horizontal');
+                        }, 100);
+
+                        self.touch.start = [];
+                        self.touch.stop = [];
+                        isVertical = false;
+                        isHorizontal = false;
+                        self._navigateUpdate();
                     }
                 })
-                // .on(touchStopEvent, () => {
-                //     // this._touchendX = event.changedTouches[0].screenX;
-                //     // this._swipeGesure();
-                // })
         }
 
-        _handle() {
+        open() {
             let $toUse = this._containerToUse()
             // this._updateTitleAndFooter()
 
             let remote = this.$element.attr('data-remote') || this.$element.attr('href');
-            let type = 'image'; // this._detectRemoteType(remote, this.$element.attr('data-type') || false)
+            let type = this.detectRemoteType(remote, this.$element.attr('data-type') || false)
 
             if(['image', 'youtube', 'vimeo', 'instagram', 'media', 'url'].indexOf(type) < 0)
-                return this._error(this.config.i18.ru.undefinedType)
+                return this.error( 'undefinedType' )
 
             switch(type) {
                 case 'image':
                     this._preloadImage(remote, $toUse)
                     this._preloadNearImages(this.galleryIndex, this.config.opts.deepPreload)
                     break;
+
                 case 'youtube':
-                    this._showYoutubeVideo(remote, $toUse);
+                    this.showYoutubeVideo(remote, $toUse);
                     break;
+
                 case 'vimeo':
-                    this._showVimeoVideo(this._getVimeoId(remote), $toUse);
+                    this.showVimeoVideo(this.getVimeoId(remote), $toUse);
                     break;
+
                 case 'instagram':
-                    this._showInstagramVideo(this._getInstagramId(remote), $toUse);
+                    this.showInstagramVideo(this.getInstagramId(remote), $toUse);
                     break;
+
                 case 'media':
-                    this._showHtml5Media(remote, $toUse);
+                    this.showHtml5Media(remote, $toUse);
                     break;
+
                 default: // url
-                    this._loadRemoteContent(remote, $toUse);
+                    this.loadRemoteContent(remote, $toUse);
                     break;
             }
 
             return this;
+        }
+
+        close() {
+            return this.$modal.modal('hide');
         }
         // serve container
         _containerToUse() {
@@ -322,21 +426,22 @@ const Lightbox = (($) => {
                 img.onload = () => {
                     if(loadingTimeout) clearTimeout(loadingTimeout)
 
-                    let image = $('<img />');
-                        image.attr('src', img.src);
-                        // image.addClass('img-fluid');
+                    let image = $('<img />', {
+                        src: img.src,
+                        class: 'img-fluid'
+                    });
 
                     $containerForImage.html(image);
                     this.$arrows.css('display', '') // remove display to default to css property
 
                     this._resize(img.width, img.height);
-                    this.togglePreloader(false);
+                    this.toggleLoading(false);
                     return this.config.onContentLoaded.call(this);
                 };
 
                 img.onerror = () => {
-                    this.togglePreloader(false);
-                    return this.error(this.config.i18.ru.failLoad + ':' + src);
+                    this.toggleLoading(false);
+                    return this.error('failLoad', + src);
                 };
             }
 
@@ -350,34 +455,20 @@ const Lightbox = (($) => {
             let nextItem = $(this.$items.get(index + depth), false);
             if('undefined' != typeof nextItem) {
                 let src = nextItem.attr('data-remote') || nextItem.attr('href');
-                // if ('image' === nextItem.attr('data-type') || this._isImage(src));
+                // if ('image' === nextItem.attr('data-type') || this.isImage(src));
                 // this._preloadImage(src, false);
             }
 
             let prevItem = $(this.$items.get(index - depth), false);
             if('undefined' != typeof prevItem) {
                 let src = prevItem.attr('data-remote') || prevItem.attr('href');
-                // if ('image' === prevItem.attr('data-type') || this._isImage(src));
+                // if ('image' === prevItem.attr('data-type') || this.isImage(src));
                 // this._preloadImage(src, false);
             }
 
             if(deep > 1) {
                 return this._preloadNearImages(index, --deep, ++depth);
             }
-        }
-
-        hotkeys(event) {
-            event = event || window.event;
-            if (event.keyCode === 39 || event.keyCode === 32)
-                return this.navigateRight();
-            if (event.keyCode === 37 || event.keyCode === 8)
-                return this.navigateLeft();
-            if (event.keyCode === 27)
-                return this.close();
-        }
-
-        close() {
-            return this.$modal.modal('hide');
         }
 
         navigateTo(index) {
@@ -389,8 +480,8 @@ const Lightbox = (($) => {
             // chenge active element
             this.$element = $(this.$items.get(this.galleryIndex));
 
-            this.navigateUpdate()
-            this._handle();
+            this._navigateUpdate()
+            return this.open();
         }
 
         navigateLeft() {
@@ -426,8 +517,8 @@ const Lightbox = (($) => {
             this.config.onNavigate.call(this, 'right', this.galleryIndex)
             return this.navigateTo(this.galleryIndex)
         }
-        // prop arrows disabled
-        navigateUpdate() {
+
+        _navigateUpdate() {
             if (!this.config.opts.infinite) {
                 if (this.galleryIndex === 0) {
                     $('button:first-child', this.$arrows)
@@ -453,10 +544,15 @@ const Lightbox = (($) => {
             }
         }
 
-        togglePreloader(show) {
-            show = !!show
+        toggleArrows(show) {
+            if( this.$arrows ) {
+                if(!!show) return this.$arrows.css('display', '');
+                else return this.$arrows.css('display', 'none');
+            }
+        }
 
-            if(show) {
+        toggleLoading(show) {
+            if(!!show) {
                 this.$dialog.css('display', 'none');
                 this.$modal.removeClass('in show');
                 $('.modal-backdrop').append(this.config.tpl.preloader);
@@ -469,13 +565,13 @@ const Lightbox = (($) => {
             return this;
         }
 
+        // layout methods
         _totalCssByAttribute(attribute) {
             return parseInt(this.$dialog.css(attribute), 10) +
                 parseInt(this.$content.css(attribute), 10) +
                 parseInt(this.$body.css(attribute), 10)
         }
 
-        // layout private methods
         _calculateBorders() {
             return {
                 top: this._totalCssByAttribute('border-top-width'),
@@ -494,7 +590,12 @@ const Lightbox = (($) => {
             }
         }
 
-        _resize( width, height ) {
+        _resize(width, height) {
+
+            if( "object" == typeof width ) {
+                height = width.height;
+                width = width.width;
+            }
 
             height = height || width
             this.remindLastWidth = width
@@ -555,10 +656,188 @@ const Lightbox = (($) => {
             return this;
         }
 
-        _error( message ) {
-            console.error(message);
-            this.containerToUse().html(message);
-            this.resize(500, 180);
+        /************************** Type check tools **************************/
+        detectRemoteType(src, type) {
+            type = type || false;
+
+            if(!type && this.isImage(src)) type = 'image';
+            if(!type && this.getYoutubeId(src)) type = 'youtube';
+            if(!type && this.getVimeoId(src)) type = 'vimeo';
+            if(!type && this.getInstagramId(src)) type = 'instagram';
+            if(type == 'audio' || type == 'video' || (!type && this.isMedia(src))) type = 'media';
+            if(!type || ['image', 'youtube', 'vimeo', 'instagram', 'media', 'url'].indexOf(type) < 0)
+                type = 'url';
+
+            return type;
+        }
+
+        getRemoteContentType(src) {
+            let response = $.ajax({
+                type: 'HEAD',
+                url: src,
+                async: false
+            });
+            let contentType = response.getResponseHeader('Content-Type')
+            return contentType;
+        }
+
+        isImage(string) {
+            return string && string.match(/(^data:image\/.*,)|(\.(jp(e|g|eg)|gif|png|bmp|webp|svg)((\?|#).*)?$)/i)
+        }
+
+        isMedia(string) {
+            return string && string.match(/(\.(mp3|mp4|ogg|webm|wav)((\?|#).*)?$)/i)
+        }
+
+        isExternal(url) {
+            let match = url.match(/^([^:\/?#]+:)?(?:\/\/([^\/?#]*))?([^?#]+)?(\?[^#]*)?(#.*)?/);
+            if (typeof match[1] === "string" && match[1].length > 0 && match[1].toLowerCase() !== location.protocol)
+                return true;
+
+            if (typeof match[2] === "string" && match[2].length > 0 && match[2].replace(new RegExp(`:(${{
+                    "http:": 80,
+                    "https:": 443
+                }[location.protocol]})?$`), "") !== location.host)
+                return true;
+
+            return false;
+        }
+
+        // @todo
+        isSelector() {
+        }
+
+        getElementSize() {
+            let width = this.$element.data('width') || 800;
+
+            return {
+                width: width,
+                height: this.$element.data('height') || width / 100 * 56.25
+            }
+        }
+
+        // should be used for videos only. for remote content use loadRemoteContent (data-type=url)
+        showHtml5Media(url, $containerForElement) {
+            let contentType = this.getRemoteContentType(url);
+            if(!contentType) return this.error( this.getLangString('undefinedType') )
+
+            let mediaType = contentType.indexOf('audio') > 0 ? 'audio' : 'video',
+                size = this.getElementSize();
+
+            $containerForElement.html( $('<div class="embed-responsive embed-responsive-16by9"></div>').append(
+                $('<' + mediaType + '>', {
+                    class: 'embed-responsive-item',
+                    width: size.width,
+                    height: size.height,
+                    preload: 'auto',
+                    autoplay: 1,
+                    controls: 1
+                })
+                .append('<source src="' + url + '" type="' + contentType + '">')
+                .append( this.getLangString('undefinedType') )
+            ) );
+
+            this._resize(size.width, size.height);
+            this.config.onContentLoaded.call(this);
+            // hide the arrows when showing video
+            this.toggleArrows(false);
+            this.toggleLoading(false);
+            return this;
+        }
+
+        // should be used for videos only. for remote content use loadRemoteContent (data-type=url)
+        showVideoIframe(url, $containerForElement, size, wrapClass = 'embed-responsive embed-responsive-16by9') {
+            if( !size ) size = this.getElementSize();
+
+            let $iFrame = $('<iframe>', {
+                src: url,
+                class: 'embed-responsive-item',
+                width: size.width,
+                height: size.height,
+                frameborder: 0,
+                allowfullscreen: 1,
+            });
+
+            if( !!wrapClass ) {
+                $containerForElement.html(
+                    $('<div class="' + wrapClass + '"></div>')
+                        .append( $iFrame )
+                );
+            }
+            else {
+                $containerForElement.html( $iFrame );
+            }
+
+            this._resize(width, height);
+            this.config.onContentLoaded.call(this);
+            // hide the arrows when showing video
+            this.toggleArrows(false);
+            this.toggleLoading(false);
+            return this;
+        }
+
+        getYoutubeId(string) {
+            if(!string)
+                return false;
+            let matches = string.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/)
+            return (matches && matches[2].length === 11) ? matches[2] : false
+        }
+
+        showYoutubeVideo(remote, $containerForElement) {
+            let id = this.getYoutubeId(remote)
+            let query = remote.indexOf('&') > 0 ? remote.substr(remote.indexOf('&')) : ''
+
+            return this.showVideoIframe(
+                `//www.youtube.com/embed/${id}?badge=0&autoplay=1&html5=1${query}`,
+                $containerForElement
+            );
+        }
+
+        getVimeoId(string) {
+            return string && string.indexOf('vimeo') > 0 ? string : false
+        }
+
+        showVimeoVideo(id, $containerForElement) {
+            return this.showVideoIframe(id + '?autoplay=1', $containerForElement)
+        }
+
+        getInstagramId(string) {
+            return string && string.indexOf('instagram') > 0 ? string : false
+        }
+
+        showInstagramVideo(id, $containerForElement) {
+            // instagram load their content into iframe's so this can be put straight into the element
+            let width = this.$element.data('width') || 612
+            let height = width + 80;
+            id = id.substr(-1) !== '/' ? id + '/' : id; // ensure id has trailing slash
+
+            return this.showVideoIframe(
+                id + 'embed/',
+                $containerForElement,
+                {width: width, height: height},
+                null
+            );
+        }
+
+        loadRemoteContent(url, $containerForElement) {
+            let disableExternalCheck = this.$element.data('disableExternalCheck') || false;
+            this.toggleLoading(false);
+
+            // external urls are loading into an iframe
+            // local ajax can be loaded into the container itself
+            if (!disableExternalCheck && !this.isExternal(url)) {
+                $containerForElement.load(url, $.proxy(() => {
+                    return this.$element.trigger('loaded.bs.modal');
+                }));
+
+            } else {
+                $containerForElement.html(`<iframe src="${url}" frameborder="0" allowfullscreen></iframe>`);
+                this.config.onContentLoaded.call(this);
+            }
+
+            // hide the arrows when remote content
+            this.toggleArrows(false);
+            this._resize( this.getElementSize() );
             return this;
         }
 
@@ -566,9 +845,9 @@ const Lightbox = (($) => {
             config = config || {}
             return this.each(() => {
                 let $this = $(this)
-                let _config = $.extend({}, Lightbox.__default, $this.data(), typeof config === 'object' && config )
+                let config = $.extend({}, Lightbox.__default, $this.data(), typeof config === 'object' && config )
 
-                new Lightbox(this, _config)
+                new Lightbox(this, config)
             })
         }
     }
