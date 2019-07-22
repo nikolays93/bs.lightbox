@@ -13,7 +13,7 @@
 <body>
     <section class="site-prefix container">
         <div class="slider row justify-content-between mt-5">
-            <div><a href="/img/placeholder.png" data-toggle="lightbox" data-gallery="example-gallery"><img class="ac" src="img/placeholder.png" alt="" width="150"></a></div>
+            <div><a href="/img/screenshot.png" data-toggle="lightbox"><img class="ac" src="img/placeholder.png" alt="" width="150"></a></div>
             <div><a href="/img/screenshot.png" data-toggle="lightbox" data-gallery="example-gallery"><img class="ac" src="img/screenshot.png" alt="" width="150"></a></div>
             <div><a href="/img/placeholder.png" data-toggle="lightbox" data-gallery="example-gallery"><img class="ac" src="img/placeholder.png" alt="" width="150"></a></div>
             <div><a href="/img/screenshot.png" data-toggle="lightbox" data-gallery="example-gallery"><img class="ac" src="img/screenshot.png" alt="" width="150"></a></div>
@@ -28,7 +28,7 @@
     <script>
         $(document).ready(function ($) {
             // delegate calls to data-toggle="lightbox"
-            $('[data-gallery]').on('click', function(event) {
+            $('[data-toggle="lightbox"]').on('click', function(event) {
                 event.preventDefault();
                 $(this).lightbox();
             });

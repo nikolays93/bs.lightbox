@@ -47,42 +47,6 @@ const Lightbox = (($) => {
             return Default;
         }
 
-        getLangString(stringKey) {
-            if( this.config.i18[ this.config.lang ][ stringKey ] ) {
-                return this.config.i18[ this.config.lang ][ stringKey ];
-            }
-
-            return stringKey
-                // insert a space before all caps
-                .replace(/([A-Z])/g, ' $1')
-                .toLowerCase()
-                // uppercase the first character
-                .replace(/^./, function(str) { return str.toUpperCase(); })
-        }
-
-        error(message, subMessage) {
-            message = getLangString(message);
-
-            if( subMessage ) {
-                message+= ': ' + subMessage;
-            }
-
-            console.error(message);
-            this._containerToUse().html(message);
-            this._resize(500, 180);
-            return this;
-        }
-
-        _hotkeys(event) {
-            event = event || window.event;
-            if (event.keyCode === 39 || event.keyCode === 32)
-                return this.navigateRight();
-            if (event.keyCode === 37 || event.keyCode === 8)
-                return this.navigateLeft();
-            if (event.keyCode === 27)
-                return this.close();
-        }
-
         constructor($target, config) {
             this.config = $.extend({}, __default, config);
             this.$arrows = null;
@@ -92,19 +56,6 @@ const Lightbox = (($) => {
             // this._footerIsShown = false;
             this.remindLastWidth = 0;
             this.remindLastHeight = 0;
-
-            this.touch = {
-                data: {},
-                start: {},
-                stop: {},
-                support: $.support.touch,
-                event: {}
-            }
-
-            this.touch.event.scroll = "touchmove scroll";
-            this.touch.event.start  = this.touch.support ? "touchstart" : "mousedown";
-            this.touch.event.stop   = this.touch.support ? "touchend" : "mouseup";
-            this.touch.event.move   = this.touch.support ? "touchmove" : "mousemove";
 
             this.modalId = 'modal-' + Math.floor((Math.random() * 1000) + 1); // this.config.id ||
 
@@ -129,7 +80,6 @@ const Lightbox = (($) => {
 
             // append modal to document
             $(this.config.doc.body).append( this.tpl );
-
             // this target element
             this.$element = $target instanceof jQuery ? $target : $($target);
             // modal group ID
@@ -156,33 +106,20 @@ const Lightbox = (($) => {
                 // set hotkeys on lightbox
                 $(document).on('keydown.bs.lightbox', this._hotkeys.bind(this))
                 // add the directional arrows to the modal
-                if (this.config.opts.arrows && this.$items.length > 1) {
-                    this.$container.append('<div class="navigations">'
-                        + this.config.tpl.leftArrow
-                        + this.config.tpl.rightArrow
-                        + '</div>');
-
-                    this.$arrows = $('.navigations', this.$container);
-
-                    this.$container.on('click', 'button:first-child', event => {
-                        if( !this.$container.hasClass('touched') ) {
-                            event.preventDefault();
-                            return this.navigateLeft();
-                        }
-                    });
-
-                    this.$container.on('click', 'button:last-child', event => {
-                        console.log('click', this.$container.hasClass('touched'));
-                        if( !this.$container.hasClass('touched') ) {
-                            event.preventDefault();
-                            return this.navigateRight();
-                        }
-                    });
-
-                    this._navigateUpdate();
+                if (this.config.opts.arrows && !this.isSingle()) {
+                    // insert (if)required arrows
+                    this._arrows();
                 }
             }
 
+            this.$modal.addClass(this.isTouchDevice() ? 'touch' : 'no-touch');
+
+            this._arrowEvents();
+            this._modalEvents();
+            // this._touchEvents();
+        }
+
+        _modalEvents() {
             /**
              * Set the events
              * and call bootstrap modal
@@ -210,148 +147,239 @@ const Lightbox = (($) => {
                 })
                 .modal(this.config);
 
-                $(window).on('resize.bs.lightbox', () => {
-                	this._resize(this.remindLastWidth, this.remindLastHeight)
-                });
-
-            /**
-             * Touch/Swipe events
-             */
-            this.$dialog
-                .on(this.touch.event.start, (event) => {
-                    let self = this;
-                    // event data
-                    self.touch.data = event.originalEvent.touches ?
-                        event.originalEvent.touches[ 0 ] :
-                        event;
-                    // start data
-                    self.touch.start = [ self.touch.data.pageX, self.touch.data.pageY ];
-                    // origin: $(event.target)
-
-                    self.$dialog
-                        // move object in touch
-                        .bind(self.touch.event.move, moveHandler);
-
-                    // call stop on touch end\mouse up
-                    $(document).one(self.touch.event.stop, self.$dialog, moveStop);
-                    $(document).on('mouseleave', self.$dialog, moveStop);
-
-                    var isVertical = false;
-                    var isHorizontal = false;
-
-                    function verticalMove() {
-                        if( !!isHorizontal ) return;
-                        isVertical = true;
-
-                        self.$dialog.css({
-                            'transform': 'translateY(' + -(self.touch.start[1] - self.touch.data.pageY) + 'px)',
-                            'transition': 'none'
-                        });
-                    }
-
-                    function horizontalMove() {
-                        if( !!isVertical ) return;
-                        isHorizontal = true;
-
-                        self.$dialog.css({
-                            'transform': 'translateX(' + -(self.touch.start[0] - self.touch.data.pageX) + 'px)',
-                            'transition': 'none'
-                        });
-                    }
-
-                    function moveHandler(event) {
-                        if (!self.touch.start) return;
-                        // update data
-                        self.touch.data = event.originalEvent.touches ?
-                            event.originalEvent.touches[ 0 ] :
-                            event;
-
-                        self.touch.stop = [ self.touch.data.pageX, self.touch.data.pageY ];
-                        // @TODO check this clicable elements (as a or button)
-                        event.preventDefault();
-
-                        // prevent scrolling
-                        if( Math.abs(self.touch.start[1] - self.touch.stop[1]) > 10 ) {
-                            if( self.$arrows ) {
-                                $('button', self.$arrows)
-                                    .addClass('disabled')
-                                    .attr('disabled', 'disabled');
-                            }
-
-                            self.$container
-                                .addClass('touched')
-                                .addClass('touched-vertical');
-
-                            verticalMove();
-                        }
-
-                        if (Math.abs(self.touch.start[0] - self.touch.stop[0]) > 10) {
-                            if( self.$items.length > 1 ) {
-                                if( self.$arrows ) {
-                                    $('button', self.$arrows)
-                                        .addClass('disabled')
-                                        .attr('disabled', 'disabled');
-                                }
-
-                                self.$container
-                                    .addClass('touched')
-                                    .addClass('touched-horizontal');
-
-                                horizontalMove();
-                            }
-                            else {
-                                moveStop(event);
-                            }
-                        }
-                    }
-
-                    function moveStop( event ) {
-                        // reset move event
-                        self.$dialog.unbind(self.touch.event.move, moveHandler);
-                        // data exists
-                        if (self.touch.start[0] !== undefined && self.touch.stop[0] !== undefined) {
-                            if( isHorizontal ) {
-                                if ( Math.abs(self.touch.start[0] - self.touch.stop[0]) > 30 ) {
-                                    if( self.touch.start[0] > self.touch.stop[0] ) {
-                                        self.navigateRight();
-                                    }
-                                    else {
-                                        self.navigateLeft();
-                                    }
-                                }
-                            }
-
-                            // is vertical move stop
-                            if( isVertical ) {
-                                if ( Math.abs(self.touch.start[1] - self.touch.stop[1]) > 30 ) {
-                                    self.$dialog.css('transition', '');
-                                    self.$modal.modal('hide');
-                                }
-                                else {
-                                    self.$dialog.css('transform', 'translate(0, 0)');
-                                }
-                            }
-                            else {
-                                self.$dialog.css('transform', 'translate(0, 0)');
-                            }
-                        }
-
-                        // disable after click event (for arrows disabled)
-                        setTimeout(function() {
-                            self.$container
-                                .removeClass('touched')
-                                .removeClass('touched-vertical')
-                                .removeClass('touched-horizontal');
-                        }, 100);
-
-                        self.touch.start = [];
-                        self.touch.stop = [];
-                        isVertical = false;
-                        isHorizontal = false;
-                        self._navigateUpdate();
-                    }
-                })
+            $(window).on('resize.bs.lightbox', () => {
+                this._resize(this.remindLastWidth, this.remindLastHeight)
+            });
         }
+
+        getLangString(stringKey) {
+            if( this.config.i18[ this.config.lang ][ stringKey ] ) {
+                return this.config.i18[ this.config.lang ][ stringKey ];
+            }
+
+            return stringKey
+                // insert a space before all caps
+                .replace(/([A-Z])/g, ' $1')
+                .toLowerCase()
+                // uppercase the first character
+                .replace(/^./, function(str) { return str.toUpperCase(); })
+        }
+
+        error(message, subMessage) {
+            message = getLangString(message);
+
+            if( subMessage ) {
+                message+= ': ' + subMessage;
+            }
+
+            console.error(message);
+            this._containerToUse().html(message);
+            this._resize(500, 180);
+            return this;
+        }
+
+        isSingle() {
+            return !this.$items || this.$items.length === 1;
+        }
+
+        isImage(string) {
+            return string && string.match(/(^data:image\/.*,)|(\.(jp(e|g|eg)|gif|png|bmp|webp|svg)((\?|#).*)?$)/i)
+        }
+
+        isMedia(string) {
+            return string && string.match(/(\.(mp3|mp4|ogg|webm|wav)((\?|#).*)?$)/i)
+        }
+
+        isExternal(url) {
+            let match = url.match(/^([^:\/?#]+:)?(?:\/\/([^\/?#]*))?([^?#]+)?(\?[^#]*)?(#.*)?/);
+            if (typeof match[1] === "string" && match[1].length > 0 && match[1].toLowerCase() !== location.protocol)
+                return true;
+
+            if (typeof match[2] === "string" && match[2].length > 0 && match[2].replace(new RegExp(`:(${{
+                    "http:": 80,
+                    "https:": 443
+                }[location.protocol]})?$`), "") !== location.host)
+                return true;
+
+            return false;
+        }
+
+        // @todo
+        isSelector() {
+        }
+
+        /****************************** Guestures *****************************/
+        isTouchDevice() {
+            var prefixes = ' -webkit- -moz- -o- -ms- '.split(' ');
+            var mq = function(query) {
+                return window.matchMedia(query).matches;
+            }
+
+            if (('ontouchstart' in window) || window.DocumentTouch && document instanceof DocumentTouch) {
+                return true;
+            }
+
+            // include the 'heartz' as a way to have a non matching MQ to help terminate the join
+            // https://git.io/vznFH
+            var query = ['(', prefixes.join('touch-enabled),('), 'heartz', ')'].join('');
+            return mq(query);
+        }
+
+        // _touchEvents() {
+        //     let isTouch = this.isTouchDevice();
+
+        //     this.touch = {
+        //         data: {},
+        //         start: {},
+        //         stop: {},
+        //         event: {
+        //             scroll: "touchmove scroll",
+        //             start: isTouch ? "touchstart" : "mousedown",
+        //             stop:  isTouch ? "touchend" : "mouseup",
+        //             move:  isTouch ? "touchmove" : "mousemove",
+        //         }
+        //     }
+
+        //     var self = this;
+        //     var isVertical = false;
+        //     var isHorizontal = false;
+
+        //     /**
+        //      * Guestures events
+        //      */
+        //     this.$dialog
+        //         .on(this.touch.event.start, (event) => {
+        //             // event data
+        //             this.touch.data = event.originalEvent.touches ?
+        //                 event.originalEvent.touches[ 0 ] :
+        //                 event;
+        //             // start data
+        //             this.touch.start = [ this.touch.data.pageX, this.touch.data.pageY ];
+        //             // origin: $(event.target)
+        //         })
+        //         // move object in touch
+        //         .on(this.touch.event.move, (event) => {
+        //             if (!this.touch.start) return;
+        //             // update data
+        //             this.touch.data = event.originalEvent.touches ? event.originalEvent.touches[ 0 ] : event;
+        //             this.touch.stop = [ this.touch.data.pageX, this.touch.data.pageY ];
+        //             // prevent scrolling
+        //             // @TODO check this clicable elements (as a or button)
+        //             event.preventDefault();
+
+        //             if (Math.abs(this.touch.start[0] - this.touch.stop[0]) > 10) {
+        //                 if( this.$arrows ) {
+        //                     $('button', this.$arrows)
+        //                         .addClass('disabled')
+        //                         .attr('disabled', 'disabled');
+        //                 }
+
+        //                 if( !this.isSingle() ) {
+        //                     this.$container
+        //                         .addClass('touched')
+        //                         .addClass('touched-horizontal');
+
+
+        //                     return this.horizontalMove();
+        //                 }
+        //                 else {
+        //                     // _touchStop(event);
+        //                 }
+        //             }
+
+        //             if(Math.abs(this.touch.start[1] - this.touch.stop[1]) > 10) {
+        //                 if( this.$arrows ) {
+        //                     $('button', this.$arrows)
+        //                         .addClass('disabled')
+        //                         .attr('disabled', 'disabled');
+        //                 }
+
+        //                 this.$container
+        //                     .addClass('touched')
+        //                     .addClass('touched-vertical');
+
+        //                 return this.verticalMove();
+        //             }
+        //         })
+
+        //     // call stop on touch end\mouse up
+        //     $(document).on(this.touch.event.stop, this.$dialog, (event) => {
+        //         // reset move event
+        //         // this.$dialog.unbind(this.touch.event.move, this._touch);
+        //         // data exists
+        //         if (this.touch.start[0] !== undefined && this.touch.stop[0] !== undefined) {
+        //             if( isHorizontal ) {
+        //                 horizontalMoveEnd();
+        //             }
+
+        //             // is vertical move stop
+        //             if( isVertical ) {
+        //                 verticalMoveEnd();
+        //             }
+        //             else {
+        //                 this.$dialog.css('transform', 'translate(0, 0)');
+        //             }
+        //         }
+
+        //         var $container = this.$container;
+
+        //         // disable after click event (for arrows disabled)
+        //         setTimeout(function() {
+        //             $container
+        //                 .removeClass('touched')
+        //                 .removeClass('touched-vertical')
+        //                 .removeClass('touched-horizontal');
+        //         }, 100);
+
+        //         self.touch.start = [];
+        //         self.touch.stop = [];
+        //         // isVertical = false;
+        //         // isHorizontal = false;
+        //         self._navigateUpdate();
+        //     });
+        //     // $(document).on('mouseleave', this.$dialog, this._touchStop);
+        // }
+
+        // verticalMove() {
+        //     // if( !!isHorizontal ) return;
+        //     // isVertical = true;
+
+        //     this.$dialog.css({
+        //         'transform': 'translateY(' + -(this.touch.start[1] - this.touch.data.pageY) + 'px)',
+        //         'transition': 'none'
+        //     });
+        // }
+
+        // verticalMoveEnd() {
+        //     if ( Math.abs(this.touch.start[1] - this.touch.stop[1]) > 30 ) {
+        //         this.$dialog.css('transition', '');
+        //         this.$modal.modal('hide');
+        //     }
+        //     else {
+        //         this.$dialog.css('transform', 'translate(0, 0)');
+        //     }
+        // }
+
+        // horizontalMove() {
+        //     // if( !!isVertical ) return;
+        //     // isHorizontal = true;
+
+        //     this.$dialog.css({
+        //         'transform': 'translateX(' + -(this.touch.start[0] - this.touch.data.pageX) + 'px)',
+        //         'transition': 'none'
+        //     });
+        // }
+
+        // horizontalMoveEnd() {
+        //     if ( Math.abs(this.touch.start[0] - this.touch.stop[0]) > 30 ) {
+        //         if( this.touch.start[0] > this.touch.stop[0] ) {
+        //             this.navigateRight();
+        //         }
+        //         else {
+        //             this.navigateLeft();
+        //         }
+        //     }
+        // }
 
         open() {
             let $toUse = this._containerToUse()
@@ -396,6 +424,142 @@ const Lightbox = (($) => {
         close() {
             return this.$modal.modal('hide');
         }
+
+        /****************************** Controlls *****************************/
+        toggleLoading(show) {
+            if(!!show) {
+                this.$dialog.css('display', 'none');
+                this.$modal.removeClass('in show');
+                $('.modal-backdrop').append(this.config.tpl.preloader);
+            }
+            else {
+                this.$dialog.css('display', 'block');
+                this.$modal.addClass('in show');
+                $('.modal-backdrop').find('.preloader').remove();
+            }
+            return this;
+        }
+
+        navigateTo(index) {
+            if(this.isSingle()) return;
+            // outer offset
+            if (index < 0 || index > this.$items.length - 1) return;
+            // change current index
+            this.galleryIndex = index;
+            // chenge active element
+            this.$element = $(this.$items.get(this.galleryIndex));
+
+            this._navigateUpdate()
+            return this.open();
+        }
+
+        navigateLeft() {
+            // not has many items
+            if( !this.$items || this.$items.length === 1 ) return;
+
+            // rewind index
+            if (this.galleryIndex === 0) {
+                if (this.config.opts.infinite) this.galleryIndex = this.$items.length - 1;
+                else return;
+            }
+            else {
+                this.galleryIndex--;
+            }
+
+            // call event
+            this.config.onNavigate.call(this, 'left', this.galleryIndex)
+            return this.navigateTo(this.galleryIndex)
+        }
+
+        navigateRight() {
+            // not has many items
+            if( !this.$items || this.$items.length === 1 ) return;
+
+            if (this.galleryIndex === this.$items.length - 1) {
+                if (this.config.opts.infinite) this.galleryIndex = 0;
+                else return;
+            }
+            else {
+                this.galleryIndex++;
+            }
+
+            this.config.onNavigate.call(this, 'right', this.galleryIndex)
+            return this.navigateTo(this.galleryIndex)
+        }
+
+        _hotkeys(event) {
+            event = event || window.event;
+            if (event.keyCode === 39 || event.keyCode === 32)
+                return this.navigateRight();
+            if (event.keyCode === 37 || event.keyCode === 8)
+                return this.navigateLeft();
+            if (event.keyCode === 27)
+                return this.close();
+        }
+
+        _arrows() {
+            this.$container.append('<div class="navigations">'
+                + this.config.tpl.leftArrow
+                + this.config.tpl.rightArrow
+                + '</div>');
+
+            this.$arrows = $('.navigations', this.$container);
+        }
+
+        _arrowEvents() {
+            if( !this.$arrows ) return;
+
+            this.$arrows.on('click', 'button:first-child', event => {
+                if( !this.$container.hasClass('touched') ) {
+                    event.preventDefault();
+                    return this.navigateLeft();
+                }
+            });
+
+            this.$arrows.on('click', 'button:last-child', event => {
+                if( !this.$container.hasClass('touched') ) {
+                    event.preventDefault();
+                    return this.navigateRight();
+                }
+            });
+
+            this._navigateUpdate();
+        }
+
+        _navigateUpdate() {
+            if (!this.config.opts.infinite && this.$arrows) {
+                if (this.galleryIndex === 0) {
+                    $('button:first-child', this.$arrows)
+                        .addClass('disabled')
+                        .attr('disabled', 'disabled');
+                }
+                else {
+                    $('button:first-child', this.$arrows)
+                        .removeClass('disabled')
+                        .removeAttr('disabled');
+                }
+
+                if (this.galleryIndex === this.$items.length - 1) {
+                    $('button:last-child', this.$arrows)
+                        .addClass('disabled')
+                        .attr('disabled', 'disabled');
+                }
+                else {
+                    $('button:last-child', this.$arrows)
+                        .removeClass('disabled')
+                        .removeAttr('disabled');
+                }
+            }
+        }
+
+        toggleArrows(show) {
+            if( this.$arrows ) {
+                if(!!show) return this.$arrows.css('display', '');
+                else return this.$arrows.css('display', 'none');
+            }
+        }
+
+        /**************************** Layout tools ****************************/
         // serve container
         _containerToUse() {
             let $first = this.$container.children('.modal-item:first');
@@ -458,8 +622,9 @@ const Lightbox = (($) => {
             return img;
         }
         // preload near images
+        // @todo repair this
         _preloadNearImages(index, deep, depth = 1) {
-            if(!this.$items) return;
+            if(this.isSingle()) return;
 
             let nextItem = $(this.$items.get(index + depth), false);
             if('undefined' != typeof nextItem) {
@@ -480,101 +645,6 @@ const Lightbox = (($) => {
             }
         }
 
-        navigateTo(index) {
-            // outer offset
-            if (index < 0 || index > this.$items.length - 1) return;
-
-            // change current index
-            this.galleryIndex = index;
-            // chenge active element
-            this.$element = $(this.$items.get(this.galleryIndex));
-
-            this._navigateUpdate()
-            return this.open();
-        }
-
-        navigateLeft() {
-            // not has many items
-            if( !this.$items || this.$items.length === 1 ) return;
-
-            // rewind index
-            if (this.galleryIndex === 0) {
-                if (this.config.opts.infinite) this.galleryIndex = this.$items.length - 1;
-                else return;
-            }
-            else {
-                this.galleryIndex--;
-            }
-
-            // call event
-            this.config.onNavigate.call(this, 'left', this.galleryIndex)
-            return this.navigateTo(this.galleryIndex)
-        }
-
-        navigateRight() {
-            // not has many items
-            if( !this.$items || this.$items.length === 1 ) return;
-
-            if (this.galleryIndex === this.$items.length - 1) {
-                if (this.config.opts.infinite) this.galleryIndex = 0;
-                else return;
-            }
-            else {
-                this.galleryIndex++;
-            }
-
-            this.config.onNavigate.call(this, 'right', this.galleryIndex)
-            return this.navigateTo(this.galleryIndex)
-        }
-
-        _navigateUpdate() {
-            if (!this.config.opts.infinite && this.$arrows) {
-                if (this.galleryIndex === 0) {
-                    $('button:first-child', this.$arrows)
-                        .addClass('disabled')
-                        .attr('disabled', 'disabled');
-                }
-                else {
-                    $('button:first-child', this.$arrows)
-                        .removeClass('disabled')
-                        .removeAttr('disabled');
-                }
-
-                if (this.galleryIndex === this.$items.length - 1) {
-                    $('button:last-child', this.$arrows)
-                        .addClass('disabled')
-                        .attr('disabled', 'disabled');
-                }
-                else {
-                    $('button:last-child', this.$arrows)
-                        .removeClass('disabled')
-                        .removeAttr('disabled');
-                }
-            }
-        }
-
-        toggleArrows(show) {
-            if( this.$arrows ) {
-                if(!!show) return this.$arrows.css('display', '');
-                else return this.$arrows.css('display', 'none');
-            }
-        }
-
-        toggleLoading(show) {
-            if(!!show) {
-                this.$dialog.css('display', 'none');
-                this.$modal.removeClass('in show');
-                $('.modal-backdrop').append(this.config.tpl.preloader);
-            }
-            else {
-                this.$dialog.css('display', 'block');
-                this.$modal.addClass('in show');
-                $('.modal-backdrop').find('.preloader').remove();
-            }
-            return this;
-        }
-
-        // layout methods
         _totalCssByAttribute(attribute) {
             return parseInt(this.$dialog.css(attribute), 10) +
                 parseInt(this.$content.css(attribute), 10) +
@@ -665,6 +735,15 @@ const Lightbox = (($) => {
             return this;
         }
 
+        getElementSize() {
+            let width = this.$element.data('width') || 560;
+
+            return {
+                width: width,
+                height: this.$element.data('height') || width / 100 * 56.25
+            }
+        }
+
         /************************** Type check tools **************************/
         detectRemoteType(src, type) {
             type = type || false;
@@ -690,41 +769,6 @@ const Lightbox = (($) => {
             return contentType;
         }
 
-        isImage(string) {
-            return string && string.match(/(^data:image\/.*,)|(\.(jp(e|g|eg)|gif|png|bmp|webp|svg)((\?|#).*)?$)/i)
-        }
-
-        isMedia(string) {
-            return string && string.match(/(\.(mp3|mp4|ogg|webm|wav)((\?|#).*)?$)/i)
-        }
-
-        isExternal(url) {
-            let match = url.match(/^([^:\/?#]+:)?(?:\/\/([^\/?#]*))?([^?#]+)?(\?[^#]*)?(#.*)?/);
-            if (typeof match[1] === "string" && match[1].length > 0 && match[1].toLowerCase() !== location.protocol)
-                return true;
-
-            if (typeof match[2] === "string" && match[2].length > 0 && match[2].replace(new RegExp(`:(${{
-                    "http:": 80,
-                    "https:": 443
-                }[location.protocol]})?$`), "") !== location.host)
-                return true;
-
-            return false;
-        }
-
-        // @todo
-        isSelector() {
-        }
-
-        getElementSize() {
-            let width = this.$element.data('width') || 800;
-
-            return {
-                width: width,
-                height: this.$element.data('height') || width / 100 * 56.25
-            }
-        }
-
         // should be used for videos only. for remote content use loadRemoteContent (data-type=url)
         showHtml5Media(url, $containerForElement) {
             let contentType = this.getRemoteContentType(url);
@@ -736,8 +780,8 @@ const Lightbox = (($) => {
             $containerForElement.html( $('<div class="embed-responsive embed-responsive-16by9"></div>').append(
                 $('<' + mediaType + '>', {
                     class: 'embed-responsive-item',
-                    width: size.width,
-                    height: size.height,
+                    // width: size.width,
+                    // height: size.height,
                     preload: 'auto',
                     autoplay: 1,
                     controls: 1
@@ -777,7 +821,7 @@ const Lightbox = (($) => {
                 $containerForElement.html( $iFrame );
             }
 
-            this._resize(width, height);
+            this._resize(size.width, size.height);
             this.config.onContentLoaded.call(this);
             // hide the arrows when showing video
             this.toggleArrows(false);

@@ -104,7 +104,6 @@
         z-index: 100;
         left: 100%;
         top: 5px;
-        transform: translateX(-70%);
         padding-bottom: 5px;
         width: 50px;
         height: 50px;
@@ -116,6 +115,12 @@
 
         &:hover {
             transition: .4s ease;
+        }
+    }
+
+    &.no-touch {
+        .close {
+            transform: translateX(-70%);
         }
     }
 
@@ -162,6 +167,19 @@
                 transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
                 -webkit-transform: perspective(120px) rotateX(-180deg) rotateY(-179.9deg);
             }
+        }
+    }
+
+    @media screen and (max-width: 992px) {
+        .close {
+            position: fixed;
+            z-index: 110;
+            top: 0;
+            left: auto;
+            right: 0;
+            bottom: auto;
+            transition: .8s ease;
+            transform: translateX(0%);
         }
     }
 }

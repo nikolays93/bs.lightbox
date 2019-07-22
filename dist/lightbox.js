@@ -143,45 +143,7 @@ var Lightbox = function ($) {
   var Lightbox =
   /*#__PURE__*/
   function () {
-    _createClass(Lightbox, [{
-      key: "getLangString",
-      value: function getLangString(stringKey) {
-        if (this.config.i18[this.config.lang][stringKey]) {
-          return this.config.i18[this.config.lang][stringKey];
-        }
-
-        return stringKey // insert a space before all caps
-        .replace(/([A-Z])/g, ' $1').toLowerCase() // uppercase the first character
-        .replace(/^./, function (str) {
-          return str.toUpperCase();
-        });
-      }
-    }, {
-      key: "error",
-      value: function error(message, subMessage) {
-        message = getLangString(message);
-
-        if (subMessage) {
-          message += ': ' + subMessage;
-        }
-
-        console.error(message);
-
-        this._containerToUse().html(message);
-
-        this._resize(500, 180);
-
-        return this;
-      }
-    }, {
-      key: "_hotkeys",
-      value: function _hotkeys(event) {
-        event = event || window.event;
-        if (event.keyCode === 39 || event.keyCode === 32) return this.navigateRight();
-        if (event.keyCode === 37 || event.keyCode === 8) return this.navigateLeft();
-        if (event.keyCode === 27) return this.close();
-      }
-    }], [{
+    _createClass(Lightbox, null, [{
       key: "Default",
       get: function get() {
         return Default;
@@ -189,8 +151,6 @@ var Lightbox = function ($) {
     }]);
 
     function Lightbox($target, config) {
-      var _this = this;
-
       _classCallCheck(this, Lightbox);
 
       this.config = $.extend({}, __default, config);
@@ -201,17 +161,6 @@ var Lightbox = function ($) {
 
       this.remindLastWidth = 0;
       this.remindLastHeight = 0;
-      this.touch = {
-        data: {},
-        start: {},
-        stop: {},
-        support: $.support.touch,
-        event: {}
-      };
-      this.touch.event.scroll = "touchmove scroll";
-      this.touch.event.start = this.touch.support ? "touchstart" : "mousedown";
-      this.touch.event.stop = this.touch.support ? "touchend" : "mouseup";
-      this.touch.event.move = this.touch.support ? "touchmove" : "mousemove";
       this.modalId = 'modal-' + Math.floor(Math.random() * 1000 + 1); // this.config.id ||
 
       this.header = this.config.tpl.close || '<div class="modal-header"><h5 class="mb-0">' + this.config.tpl.title + '</h5>' + this.config.tpl.close + '</div>';
@@ -246,168 +195,269 @@ var Lightbox = function ($) {
 
         $(document).on('keydown.bs.lightbox', this._hotkeys.bind(this)); // add the directional arrows to the modal
 
-        if (this.config.opts.arrows && this.$items.length > 1) {
-          this.$container.append('<div class="navigations">' + this.config.tpl.leftArrow + this.config.tpl.rightArrow + '</div>');
-          this.$arrows = $('.navigations', this.$container);
-          this.$container.on('click', 'button:first-child', function (event) {
-            if (!_this.$container.hasClass('touched')) {
-              event.preventDefault();
-              return _this.navigateLeft();
-            }
-          });
-          this.$container.on('click', 'button:last-child', function (event) {
-            console.log('click', _this.$container.hasClass('touched'));
-
-            if (!_this.$container.hasClass('touched')) {
-              event.preventDefault();
-              return _this.navigateRight();
-            }
-          });
-
-          this._navigateUpdate();
+        if (this.config.opts.arrows && !this.isSingle()) {
+          // insert (if)required arrows
+          this._arrows();
         }
       }
-      /**
-       * Set the events
-       * and call bootstrap modal
-       */
 
+      this.$modal.addClass(this.isTouchDevice() ? 'touch' : 'no-touch');
 
-      this.$modal // call onShow on modal open
-      .on('show.bs.modal', this.config.onShow.bind(this)) // call onShown after modal opened
-      .on('shown.bs.modal', function () {
-        _this.toggleLoading(true);
+      this._arrowEvents();
 
-        _this.open();
+      this._modalEvents(); // this._touchEvents();
 
-        return _this.config.onShown.call(_this);
-      }) // call onHide on modal close
-      .on('hide.bs.modal', this.config.onHide.bind(this)) // Call onHidden after modal closed
-      .on('hidden.bs.modal', function () {
-        if (_this.galleryName) {
-          $(document).off('keydown.bs.lightbox');
-          $(window).off('resize.bs.lightbox');
-        } // jQuery element delete
-
-
-        _this.$modal.remove();
-
-        return _this.config.onHidden.call(_this);
-      }).modal(this.config);
-      $(window).on('resize.bs.lightbox', function () {
-        _this._resize(_this.remindLastWidth, _this.remindLastHeight);
-      });
-      /**
-       * Touch/Swipe events
-       */
-
-      this.$dialog.on(this.touch.event.start, function (event) {
-        var self = _this; // event data
-
-        self.touch.data = event.originalEvent.touches ? event.originalEvent.touches[0] : event; // start data
-
-        self.touch.start = [self.touch.data.pageX, self.touch.data.pageY]; // origin: $(event.target)
-
-        self.$dialog // move object in touch
-        .bind(self.touch.event.move, moveHandler); // call stop on touch end\mouse up
-
-        $(document).one(self.touch.event.stop, self.$dialog, moveStop);
-        $(document).on('mouseleave', self.$dialog, moveStop);
-        var isVertical = false;
-        var isHorizontal = false;
-
-        function verticalMove() {
-          if (!!isHorizontal) return;
-          isVertical = true;
-          self.$dialog.css({
-            'transform': 'translateY(' + -(self.touch.start[1] - self.touch.data.pageY) + 'px)',
-            'transition': 'none'
-          });
-        }
-
-        function horizontalMove() {
-          if (!!isVertical) return;
-          isHorizontal = true;
-          self.$dialog.css({
-            'transform': 'translateX(' + -(self.touch.start[0] - self.touch.data.pageX) + 'px)',
-            'transition': 'none'
-          });
-        }
-
-        function moveHandler(event) {
-          if (!self.touch.start) return; // update data
-
-          self.touch.data = event.originalEvent.touches ? event.originalEvent.touches[0] : event;
-          self.touch.stop = [self.touch.data.pageX, self.touch.data.pageY]; // @TODO check this clicable elements (as a or button)
-
-          event.preventDefault(); // prevent scrolling
-
-          if (Math.abs(self.touch.start[1] - self.touch.stop[1]) > 10) {
-            if (self.$arrows) {
-              $('button', self.$arrows).addClass('disabled').attr('disabled', 'disabled');
-            }
-
-            self.$container.addClass('touched').addClass('touched-vertical');
-            verticalMove();
-          }
-
-          if (Math.abs(self.touch.start[0] - self.touch.stop[0]) > 10) {
-            if (self.$items.length > 1) {
-              if (self.$arrows) {
-                $('button', self.$arrows).addClass('disabled').attr('disabled', 'disabled');
-              }
-
-              self.$container.addClass('touched').addClass('touched-horizontal');
-              horizontalMove();
-            } else {
-              moveStop(event);
-            }
-          }
-        }
-
-        function moveStop(event) {
-          // reset move event
-          self.$dialog.unbind(self.touch.event.move, moveHandler); // data exists
-
-          if (self.touch.start[0] !== undefined && self.touch.stop[0] !== undefined) {
-            if (isHorizontal) {
-              if (Math.abs(self.touch.start[0] - self.touch.stop[0]) > 30) {
-                if (self.touch.start[0] > self.touch.stop[0]) {
-                  self.navigateRight();
-                } else {
-                  self.navigateLeft();
-                }
-              }
-            } // is vertical move stop
-
-
-            if (isVertical) {
-              if (Math.abs(self.touch.start[1] - self.touch.stop[1]) > 30) {
-                self.$dialog.css('transition', '');
-                self.$modal.modal('hide');
-              } else {
-                self.$dialog.css('transform', 'translate(0, 0)');
-              }
-            } else {
-              self.$dialog.css('transform', 'translate(0, 0)');
-            }
-          } // disable after click event (for arrows disabled)
-
-
-          setTimeout(function () {
-            self.$container.removeClass('touched').removeClass('touched-vertical').removeClass('touched-horizontal');
-          }, 100);
-          self.touch.start = [];
-          self.touch.stop = [];
-          isVertical = false;
-          isHorizontal = false;
-
-          self._navigateUpdate();
-        }
-      });
     }
 
     _createClass(Lightbox, [{
+      key: "_modalEvents",
+      value: function _modalEvents() {
+        var _this = this;
+
+        /**
+         * Set the events
+         * and call bootstrap modal
+         */
+        this.$modal // call onShow on modal open
+        .on('show.bs.modal', this.config.onShow.bind(this)) // call onShown after modal opened
+        .on('shown.bs.modal', function () {
+          _this.toggleLoading(true);
+
+          _this.open();
+
+          return _this.config.onShown.call(_this);
+        }) // call onHide on modal close
+        .on('hide.bs.modal', this.config.onHide.bind(this)) // Call onHidden after modal closed
+        .on('hidden.bs.modal', function () {
+          if (_this.galleryName) {
+            $(document).off('keydown.bs.lightbox');
+            $(window).off('resize.bs.lightbox');
+          } // jQuery element delete
+
+
+          _this.$modal.remove();
+
+          return _this.config.onHidden.call(_this);
+        }).modal(this.config);
+        $(window).on('resize.bs.lightbox', function () {
+          _this._resize(_this.remindLastWidth, _this.remindLastHeight);
+        });
+      }
+    }, {
+      key: "getLangString",
+      value: function getLangString(stringKey) {
+        if (this.config.i18[this.config.lang][stringKey]) {
+          return this.config.i18[this.config.lang][stringKey];
+        }
+
+        return stringKey // insert a space before all caps
+        .replace(/([A-Z])/g, ' $1').toLowerCase() // uppercase the first character
+        .replace(/^./, function (str) {
+          return str.toUpperCase();
+        });
+      }
+    }, {
+      key: "error",
+      value: function error(message, subMessage) {
+        message = getLangString(message);
+
+        if (subMessage) {
+          message += ': ' + subMessage;
+        }
+
+        console.error(message);
+
+        this._containerToUse().html(message);
+
+        this._resize(500, 180);
+
+        return this;
+      }
+    }, {
+      key: "isSingle",
+      value: function isSingle() {
+        return !this.$items || this.$items.length === 1;
+      }
+    }, {
+      key: "isImage",
+      value: function isImage(string) {
+        return string && string.match(/(^data:image\/.*,)|(\.(jp(e|g|eg)|gif|png|bmp|webp|svg)((\?|#).*)?$)/i);
+      }
+    }, {
+      key: "isMedia",
+      value: function isMedia(string) {
+        return string && string.match(/(\.(mp3|mp4|ogg|webm|wav)((\?|#).*)?$)/i);
+      }
+    }, {
+      key: "isExternal",
+      value: function isExternal(url) {
+        var match = url.match(/^([^:\/?#]+:)?(?:\/\/([^\/?#]*))?([^?#]+)?(\?[^#]*)?(#.*)?/);
+        if (typeof match[1] === "string" && match[1].length > 0 && match[1].toLowerCase() !== location.protocol) return true;
+        if (typeof match[2] === "string" && match[2].length > 0 && match[2].replace(new RegExp(":(".concat({
+          "http:": 80,
+          "https:": 443
+        }[location.protocol], ")?$")), "") !== location.host) return true;
+        return false;
+      } // @todo
+
+    }, {
+      key: "isSelector",
+      value: function isSelector() {}
+      /****************************** Guestures *****************************/
+
+    }, {
+      key: "isTouchDevice",
+      value: function isTouchDevice() {
+        var prefixes = ' -webkit- -moz- -o- -ms- '.split(' ');
+
+        var mq = function mq(query) {
+          return window.matchMedia(query).matches;
+        };
+
+        if ('ontouchstart' in window || window.DocumentTouch && document instanceof DocumentTouch) {
+          return true;
+        } // include the 'heartz' as a way to have a non matching MQ to help terminate the join
+        // https://git.io/vznFH
+
+
+        var query = ['(', prefixes.join('touch-enabled),('), 'heartz', ')'].join('');
+        return mq(query);
+      } // _touchEvents() {
+      //     let isTouch = this.isTouchDevice();
+      //     this.touch = {
+      //         data: {},
+      //         start: {},
+      //         stop: {},
+      //         event: {
+      //             scroll: "touchmove scroll",
+      //             start: isTouch ? "touchstart" : "mousedown",
+      //             stop:  isTouch ? "touchend" : "mouseup",
+      //             move:  isTouch ? "touchmove" : "mousemove",
+      //         }
+      //     }
+      //     var self = this;
+      //     var isVertical = false;
+      //     var isHorizontal = false;
+      //     /**
+      //      * Guestures events
+      //      */
+      //     this.$dialog
+      //         .on(this.touch.event.start, (event) => {
+      //             // event data
+      //             this.touch.data = event.originalEvent.touches ?
+      //                 event.originalEvent.touches[ 0 ] :
+      //                 event;
+      //             // start data
+      //             this.touch.start = [ this.touch.data.pageX, this.touch.data.pageY ];
+      //             // origin: $(event.target)
+      //         })
+      //         // move object in touch
+      //         .on(this.touch.event.move, (event) => {
+      //             if (!this.touch.start) return;
+      //             // update data
+      //             this.touch.data = event.originalEvent.touches ? event.originalEvent.touches[ 0 ] : event;
+      //             this.touch.stop = [ this.touch.data.pageX, this.touch.data.pageY ];
+      //             // prevent scrolling
+      //             // @TODO check this clicable elements (as a or button)
+      //             event.preventDefault();
+      //             if (Math.abs(this.touch.start[0] - this.touch.stop[0]) > 10) {
+      //                 if( this.$arrows ) {
+      //                     $('button', this.$arrows)
+      //                         .addClass('disabled')
+      //                         .attr('disabled', 'disabled');
+      //                 }
+      //                 if( !this.isSingle() ) {
+      //                     this.$container
+      //                         .addClass('touched')
+      //                         .addClass('touched-horizontal');
+      //                     return this.horizontalMove();
+      //                 }
+      //                 else {
+      //                     // _touchStop(event);
+      //                 }
+      //             }
+      //             if(Math.abs(this.touch.start[1] - this.touch.stop[1]) > 10) {
+      //                 if( this.$arrows ) {
+      //                     $('button', this.$arrows)
+      //                         .addClass('disabled')
+      //                         .attr('disabled', 'disabled');
+      //                 }
+      //                 this.$container
+      //                     .addClass('touched')
+      //                     .addClass('touched-vertical');
+      //                 return this.verticalMove();
+      //             }
+      //         })
+      //     // call stop on touch end\mouse up
+      //     $(document).on(this.touch.event.stop, this.$dialog, (event) => {
+      //         // reset move event
+      //         // this.$dialog.unbind(this.touch.event.move, this._touch);
+      //         // data exists
+      //         if (this.touch.start[0] !== undefined && this.touch.stop[0] !== undefined) {
+      //             if( isHorizontal ) {
+      //                 horizontalMoveEnd();
+      //             }
+      //             // is vertical move stop
+      //             if( isVertical ) {
+      //                 verticalMoveEnd();
+      //             }
+      //             else {
+      //                 this.$dialog.css('transform', 'translate(0, 0)');
+      //             }
+      //         }
+      //         var $container = this.$container;
+      //         // disable after click event (for arrows disabled)
+      //         setTimeout(function() {
+      //             $container
+      //                 .removeClass('touched')
+      //                 .removeClass('touched-vertical')
+      //                 .removeClass('touched-horizontal');
+      //         }, 100);
+      //         self.touch.start = [];
+      //         self.touch.stop = [];
+      //         // isVertical = false;
+      //         // isHorizontal = false;
+      //         self._navigateUpdate();
+      //     });
+      //     // $(document).on('mouseleave', this.$dialog, this._touchStop);
+      // }
+      // verticalMove() {
+      //     // if( !!isHorizontal ) return;
+      //     // isVertical = true;
+      //     this.$dialog.css({
+      //         'transform': 'translateY(' + -(this.touch.start[1] - this.touch.data.pageY) + 'px)',
+      //         'transition': 'none'
+      //     });
+      // }
+      // verticalMoveEnd() {
+      //     if ( Math.abs(this.touch.start[1] - this.touch.stop[1]) > 30 ) {
+      //         this.$dialog.css('transition', '');
+      //         this.$modal.modal('hide');
+      //     }
+      //     else {
+      //         this.$dialog.css('transform', 'translate(0, 0)');
+      //     }
+      // }
+      // horizontalMove() {
+      //     // if( !!isVertical ) return;
+      //     // isHorizontal = true;
+      //     this.$dialog.css({
+      //         'transform': 'translateX(' + -(this.touch.start[0] - this.touch.data.pageX) + 'px)',
+      //         'transition': 'none'
+      //     });
+      // }
+      // horizontalMoveEnd() {
+      //     if ( Math.abs(this.touch.start[0] - this.touch.stop[0]) > 30 ) {
+      //         if( this.touch.start[0] > this.touch.stop[0] ) {
+      //             this.navigateRight();
+      //         }
+      //         else {
+      //             this.navigateLeft();
+      //         }
+      //     }
+      // }
+
+    }, {
       key: "open",
       value: function open() {
         var $toUse = this._containerToUse(); // this._updateTitleAndFooter()
@@ -453,104 +503,29 @@ var Lightbox = function ($) {
       key: "close",
       value: function close() {
         return this.$modal.modal('hide');
-      } // serve container
+      }
+      /****************************** Controlls *****************************/
 
     }, {
-      key: "_containerToUse",
-      value: function _containerToUse() {
-        var $first = this.$container.children('.modal-item:first');
-        var $last = this.$container.children('.modal-item:last'); // if currently showing an image, fade it out and remove
-
-        var $toUse = $last;
-        var $current = $first;
-
-        if ($toUse.hasClass('in')) {
-          $toUse = $first;
-          $current = $last;
+      key: "toggleLoading",
+      value: function toggleLoading(show) {
+        if (!!show) {
+          this.$dialog.css('display', 'none');
+          this.$modal.removeClass('in show');
+          $('.modal-backdrop').append(this.config.tpl.preloader);
+        } else {
+          this.$dialog.css('display', 'block');
+          this.$modal.addClass('in show');
+          $('.modal-backdrop').find('.preloader').remove();
         }
 
-        $current.removeClass('in show');
-        setTimeout(function () {
-          if (!$last.hasClass('in')) $last.empty();
-          if (!$first.hasClass('in')) $first.empty();
-        }, 500);
-        $toUse.addClass('in show');
-        return $toUse;
-      } // load in container
-
-    }, {
-      key: "_preloadImage",
-      value: function _preloadImage(src, $containerForImage) {
-        var _this2 = this;
-
-        $containerForImage = $containerForImage || false;
-        var img = new Image();
-
-        if ($containerForImage) {
-          // if loading takes > 200ms show a loader
-          var loadingTimeout = setTimeout(function () {
-            $containerForImage.append(_this2.config.tpl.preloader);
-          }, 200);
-
-          img.onload = function () {
-            if (loadingTimeout) clearTimeout(loadingTimeout);
-            var image = $('<img />', {
-              src: img.src,
-              "class": 'img-fluid'
-            });
-            $containerForImage.html(image);
-
-            if (_this2.$arrows) {
-              _this2.$arrows.css('display', ''); // remove display to default to css property
-
-            }
-
-            _this2._resize(img.width, img.height);
-
-            _this2.toggleLoading(false);
-
-            return _this2.config.onContentLoaded.call(_this2);
-          };
-
-          img.onerror = function () {
-            _this2.toggleLoading(false);
-
-            return _this2.error('failLoad', +src);
-          };
-        }
-
-        img.src = src;
-        return img;
-      } // preload near images
-
-    }, {
-      key: "_preloadNearImages",
-      value: function _preloadNearImages(index, deep) {
-        var depth = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
-        if (!this.$items) return;
-        var nextItem = $(this.$items.get(index + depth), false);
-
-        if ('undefined' != typeof nextItem) {
-          var src = nextItem.attr('data-remote') || nextItem.attr('href'); // if ('image' === nextItem.attr('data-type') || this.isImage(src));
-          // this._preloadImage(src, false);
-        }
-
-        var prevItem = $(this.$items.get(index - depth), false);
-
-        if ('undefined' != typeof prevItem) {
-          var _src = prevItem.attr('data-remote') || prevItem.attr('href'); // if ('image' === prevItem.attr('data-type') || this.isImage(src));
-          // this._preloadImage(src, false);
-
-        }
-
-        if (deep > 1) {
-          return this._preloadNearImages(index, --deep, ++depth);
-        }
+        return this;
       }
     }, {
       key: "navigateTo",
       value: function navigateTo(index) {
-        // outer offset
+        if (this.isSingle()) return; // outer offset
+
         if (index < 0 || index > this.$items.length - 1) return; // change current index
 
         this.galleryIndex = index; // chenge active element
@@ -593,6 +568,41 @@ var Lightbox = function ($) {
         return this.navigateTo(this.galleryIndex);
       }
     }, {
+      key: "_hotkeys",
+      value: function _hotkeys(event) {
+        event = event || window.event;
+        if (event.keyCode === 39 || event.keyCode === 32) return this.navigateRight();
+        if (event.keyCode === 37 || event.keyCode === 8) return this.navigateLeft();
+        if (event.keyCode === 27) return this.close();
+      }
+    }, {
+      key: "_arrows",
+      value: function _arrows() {
+        this.$container.append('<div class="navigations">' + this.config.tpl.leftArrow + this.config.tpl.rightArrow + '</div>');
+        this.$arrows = $('.navigations', this.$container);
+      }
+    }, {
+      key: "_arrowEvents",
+      value: function _arrowEvents() {
+        var _this2 = this;
+
+        if (!this.$arrows) return;
+        this.$arrows.on('click', 'button:first-child', function (event) {
+          if (!_this2.$container.hasClass('touched')) {
+            event.preventDefault();
+            return _this2.navigateLeft();
+          }
+        });
+        this.$arrows.on('click', 'button:last-child', function (event) {
+          if (!_this2.$container.hasClass('touched')) {
+            event.preventDefault();
+            return _this2.navigateRight();
+          }
+        });
+
+        this._navigateUpdate();
+      }
+    }, {
       key: "_navigateUpdate",
       value: function _navigateUpdate() {
         if (!this.config.opts.infinite && this.$arrows) {
@@ -616,22 +626,102 @@ var Lightbox = function ($) {
           if (!!show) return this.$arrows.css('display', '');else return this.$arrows.css('display', 'none');
         }
       }
+      /**************************** Layout tools ****************************/
+      // serve container
+
     }, {
-      key: "toggleLoading",
-      value: function toggleLoading(show) {
-        if (!!show) {
-          this.$dialog.css('display', 'none');
-          this.$modal.removeClass('in show');
-          $('.modal-backdrop').append(this.config.tpl.preloader);
-        } else {
-          this.$dialog.css('display', 'block');
-          this.$modal.addClass('in show');
-          $('.modal-backdrop').find('.preloader').remove();
+      key: "_containerToUse",
+      value: function _containerToUse() {
+        var $first = this.$container.children('.modal-item:first');
+        var $last = this.$container.children('.modal-item:last'); // if currently showing an image, fade it out and remove
+
+        var $toUse = $last;
+        var $current = $first;
+
+        if ($toUse.hasClass('in')) {
+          $toUse = $first;
+          $current = $last;
         }
 
-        return this;
-      } // layout methods
+        $current.removeClass('in show');
+        setTimeout(function () {
+          if (!$last.hasClass('in')) $last.empty();
+          if (!$first.hasClass('in')) $first.empty();
+        }, 500);
+        $toUse.addClass('in show');
+        return $toUse;
+      } // load in container
 
+    }, {
+      key: "_preloadImage",
+      value: function _preloadImage(src, $containerForImage) {
+        var _this3 = this;
+
+        $containerForImage = $containerForImage || false;
+        var img = new Image();
+
+        if ($containerForImage) {
+          // if loading takes > 200ms show a loader
+          var loadingTimeout = setTimeout(function () {
+            $containerForImage.append(_this3.config.tpl.preloader);
+          }, 200);
+
+          img.onload = function () {
+            if (loadingTimeout) clearTimeout(loadingTimeout);
+            var image = $('<img />', {
+              src: img.src,
+              "class": 'img-fluid'
+            });
+            $containerForImage.html(image);
+
+            if (_this3.$arrows) {
+              _this3.$arrows.css('display', ''); // remove display to default to css property
+
+            }
+
+            _this3._resize(img.width, img.height);
+
+            _this3.toggleLoading(false);
+
+            return _this3.config.onContentLoaded.call(_this3);
+          };
+
+          img.onerror = function () {
+            _this3.toggleLoading(false);
+
+            return _this3.error('failLoad', +src);
+          };
+        }
+
+        img.src = src;
+        return img;
+      } // preload near images
+      // @todo repair this
+
+    }, {
+      key: "_preloadNearImages",
+      value: function _preloadNearImages(index, deep) {
+        var depth = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
+        if (this.isSingle()) return;
+        var nextItem = $(this.$items.get(index + depth), false);
+
+        if ('undefined' != typeof nextItem) {
+          var src = nextItem.attr('data-remote') || nextItem.attr('href'); // if ('image' === nextItem.attr('data-type') || this.isImage(src));
+          // this._preloadImage(src, false);
+        }
+
+        var prevItem = $(this.$items.get(index - depth), false);
+
+        if ('undefined' != typeof prevItem) {
+          var _src = prevItem.attr('data-remote') || prevItem.attr('href'); // if ('image' === prevItem.attr('data-type') || this.isImage(src));
+          // this._preloadImage(src, false);
+
+        }
+
+        if (deep > 1) {
+          return this._preloadNearImages(index, --deep, ++depth);
+        }
+      }
     }, {
       key: "_totalCssByAttribute",
       value: function _totalCssByAttribute(attribute) {
@@ -706,6 +796,15 @@ var Lightbox = function ($) {
         if (modal) modal.handleUpdate();
         return this;
       }
+    }, {
+      key: "getElementSize",
+      value: function getElementSize() {
+        var width = this.$element.data('width') || 560;
+        return {
+          width: width,
+          height: this.$element.data('height') || width / 100 * 56.25
+        };
+      }
       /************************** Type check tools **************************/
 
     }, {
@@ -730,40 +829,6 @@ var Lightbox = function ($) {
         });
         var contentType = response.getResponseHeader('Content-Type');
         return contentType;
-      }
-    }, {
-      key: "isImage",
-      value: function isImage(string) {
-        return string && string.match(/(^data:image\/.*,)|(\.(jp(e|g|eg)|gif|png|bmp|webp|svg)((\?|#).*)?$)/i);
-      }
-    }, {
-      key: "isMedia",
-      value: function isMedia(string) {
-        return string && string.match(/(\.(mp3|mp4|ogg|webm|wav)((\?|#).*)?$)/i);
-      }
-    }, {
-      key: "isExternal",
-      value: function isExternal(url) {
-        var match = url.match(/^([^:\/?#]+:)?(?:\/\/([^\/?#]*))?([^?#]+)?(\?[^#]*)?(#.*)?/);
-        if (typeof match[1] === "string" && match[1].length > 0 && match[1].toLowerCase() !== location.protocol) return true;
-        if (typeof match[2] === "string" && match[2].length > 0 && match[2].replace(new RegExp(":(".concat({
-          "http:": 80,
-          "https:": 443
-        }[location.protocol], ")?$")), "") !== location.host) return true;
-        return false;
-      } // @todo
-
-    }, {
-      key: "isSelector",
-      value: function isSelector() {}
-    }, {
-      key: "getElementSize",
-      value: function getElementSize() {
-        var width = this.$element.data('width') || 800;
-        return {
-          width: width,
-          height: this.$element.data('height') || width / 100 * 56.25
-        };
       } // should be used for videos only. for remote content use loadRemoteContent (data-type=url)
 
     }, {
@@ -775,8 +840,8 @@ var Lightbox = function ($) {
             size = this.getElementSize();
         $containerForElement.html($('<div class="embed-responsive embed-responsive-16by9"></div>').append($('<' + mediaType + '>', {
           "class": 'embed-responsive-item',
-          width: size.width,
-          height: size.height,
+          // width: size.width,
+          // height: size.height,
           preload: 'auto',
           autoplay: 1,
           controls: 1
@@ -811,7 +876,7 @@ var Lightbox = function ($) {
           $containerForElement.html($iFrame);
         }
 
-        this._resize(width, height);
+        this._resize(size.width, size.height);
 
         this.config.onContentLoaded.call(this); // hide the arrows when showing video
 
@@ -864,7 +929,7 @@ var Lightbox = function ($) {
     }, {
       key: "loadRemoteContent",
       value: function loadRemoteContent(url, $containerForElement) {
-        var _this3 = this;
+        var _this4 = this;
 
         var disableExternalCheck = this.$element.data('disableExternalCheck') || false;
         this.toggleLoading(false); // external urls are loading into an iframe
@@ -872,7 +937,7 @@ var Lightbox = function ($) {
 
         if (!disableExternalCheck && !this.isExternal(url)) {
           $containerForElement.load(url, $.proxy(function () {
-            return _this3.$element.trigger('loaded.bs.modal');
+            return _this4.$element.trigger('loaded.bs.modal');
           }));
         } else {
           $containerForElement.html("<iframe src=\"".concat(url, "\" frameborder=\"0\" allowfullscreen></iframe>"));
@@ -889,13 +954,13 @@ var Lightbox = function ($) {
     }], [{
       key: "_jQueryInterface",
       value: function _jQueryInterface(config) {
-        var _this4 = this;
+        var _this5 = this;
 
         config = config || {};
         return this.each(function () {
-          var $this = $(_this4);
+          var $this = $(_this5);
           var config = $.extend({}, Lightbox.__default, $this.data(), _typeof(config) === 'object' && config);
-          new Lightbox(_this4, config);
+          new Lightbox(_this5, config);
         });
       }
     }]);
