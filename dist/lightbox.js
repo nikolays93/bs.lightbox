@@ -111,6 +111,8 @@ var Lightbox = function ($) {
     lang: 'ru',
     i18: {
       ru: {
+        prev: 'Назад',
+        next: 'Вперед',
         close: 'Закрыть',
         failLoad: 'Не удалось загрузить контент.',
         undefinedType: 'Не удалось определить тип контента'
@@ -119,8 +121,8 @@ var Lightbox = function ($) {
     tpl: {
       title: 'Тестовый заголовок',
       preloader: '<div class="preloader"></div>',
-      leftArrow: '<button type="button"><span>&#10094;</span></button>',
-      rightArrow: '<button type="button"><span>&#10095;</span></button>',
+      leftArrow: '<button type="button" title="{{prev}}"><span>&#10094;</span></button>',
+      rightArrow: '<button type="button" title="{{next}}"><span>&#10095;</span></button>',
       close: '<button type="button" class="close" data-dismiss="modal" aria-label="{{close}}"><span aria-hidden="true">&times;</span></button>'
     },
     opts: {
@@ -163,10 +165,11 @@ var Lightbox = function ($) {
       this.remindLastHeight = 0;
       this.modalId = 'modal-' + Math.floor(Math.random() * 1000 + 1); // this.config.id ||
 
-      this.header = this.config.tpl.close || '<div class="modal-header"><h5 class="mb-0">' + this.config.tpl.title + '</h5>' + this.config.tpl.close + '</div>';
+      this.header = this.config.tpl.close; // || '<div class="modal-header"><h5 class="mb-0">' + this.config.tpl.title + '</h5>' + this.config.tpl.close + '</div>';
+
       this.footer = ' ' || false;
       this.tpl = '<div class="modal lightbox fade" id="' + this.modalId + '" tabindex="-1" role="dialog" aria-hidden="true">' + '   <div class="modal-dialog" role="document">' // modal-dialog-centered
-      + '       <div class="modal-content">' + '           ' + this.header + '           <div class="modal-body">' + '               <div class="modal-container">' + '                   <div class="modal-item fade in show"></div>' + '                   <div class="modal-item fade"></div>' + '               </div>' + '           </div>' + '           ' + this.footer + '       </div><!-- .modal-content -->' + '   </div>' + '</div>'; // append modal to document
+      + '       <div class="modal-content">' + '           ' + this.translate(this.header) + '           <div class="modal-body">' + '               <div class="modal-container">' + '                   <div class="modal-item fade in show"></div>' + '                   <div class="modal-item fade"></div>' + '               </div>' + '           </div>' + '           ' + this.translate(this.footer) + '       </div><!-- .modal-content -->' + '   </div>' + '</div>'; // append modal to document
 
       $(this.config.doc.body).append(this.tpl); // this target element
 
@@ -246,14 +249,25 @@ var Lightbox = function ($) {
     }, {
       key: "getLangString",
       value: function getLangString(stringKey) {
-        if (this.config.i18[this.config.lang][stringKey]) {
-          return this.config.i18[this.config.lang][stringKey];
+        var langArr = this.config.i18[this.config.lang] || this.config.i18.ru;
+
+        if (langArr[stringKey]) {
+          return langArr[stringKey];
         }
 
         return stringKey // insert a space before all caps
         .replace(/([A-Z])/g, ' $1').toLowerCase() // uppercase the first character
         .replace(/^./, function (str) {
           return str.toUpperCase();
+        });
+      }
+    }, {
+      key: "translate",
+      value: function translate(str) {
+        var _this2 = this;
+
+        return str.replace(/\{\{(\w+)\}\}/g, function (match, n1) {
+          return _this2.getLangString(n1);
         });
       }
     }, {
@@ -512,7 +526,7 @@ var Lightbox = function ($) {
         if (!!show) {
           this.$dialog.css('display', 'none');
           this.$modal.removeClass('in show');
-          $('.modal-backdrop').append(this.config.tpl.preloader);
+          $('.modal-backdrop').append(this.translate(this.config.tpl.preloader));
         } else {
           this.$dialog.css('display', 'block');
           this.$modal.addClass('in show');
@@ -571,32 +585,44 @@ var Lightbox = function ($) {
       key: "_hotkeys",
       value: function _hotkeys(event) {
         event = event || window.event;
-        if (event.keyCode === 39 || event.keyCode === 32) return this.navigateRight();
-        if (event.keyCode === 37 || event.keyCode === 8) return this.navigateLeft();
-        if (event.keyCode === 27) return this.close();
+        var key = event.keyCode || event.which; // right arrow or space
+
+        if (key === 39 || key === 32) {
+          return this.navigateRight();
+        } // left arrow or backspace
+
+
+        if (key === 37 || key === 8) {
+          return this.navigateLeft();
+        } // escape
+
+
+        if (key === 27) {
+          return this.close();
+        }
       }
     }, {
       key: "_arrows",
       value: function _arrows() {
-        this.$container.append('<div class="navigations">' + this.config.tpl.leftArrow + this.config.tpl.rightArrow + '</div>');
+        this.$container.append('<div class="navigations">' + this.translate(this.config.tpl.leftArrow) + this.translate(this.config.tpl.rightArrow) + '</div>');
         this.$arrows = $('.navigations', this.$container);
       }
     }, {
       key: "_arrowEvents",
       value: function _arrowEvents() {
-        var _this2 = this;
+        var _this3 = this;
 
         if (!this.$arrows) return;
         this.$arrows.on('click', 'button:first-child', function (event) {
-          if (!_this2.$container.hasClass('touched')) {
+          if (!_this3.$container.hasClass('touched')) {
             event.preventDefault();
-            return _this2.navigateLeft();
+            return _this3.navigateLeft();
           }
         });
         this.$arrows.on('click', 'button:last-child', function (event) {
-          if (!_this2.$container.hasClass('touched')) {
+          if (!_this3.$container.hasClass('touched')) {
             event.preventDefault();
-            return _this2.navigateRight();
+            return _this3.navigateRight();
           }
         });
 
@@ -655,7 +681,7 @@ var Lightbox = function ($) {
     }, {
       key: "_preloadImage",
       value: function _preloadImage(src, $containerForImage) {
-        var _this3 = this;
+        var _this4 = this;
 
         $containerForImage = $containerForImage || false;
         var img = new Image();
@@ -663,7 +689,7 @@ var Lightbox = function ($) {
         if ($containerForImage) {
           // if loading takes > 200ms show a loader
           var loadingTimeout = setTimeout(function () {
-            $containerForImage.append(_this3.config.tpl.preloader);
+            $containerForImage.append(_this4.translate(_this4.config.tpl.preloader));
           }, 200);
 
           img.onload = function () {
@@ -674,22 +700,22 @@ var Lightbox = function ($) {
             });
             $containerForImage.html(image);
 
-            if (_this3.$arrows) {
-              _this3.$arrows.css('display', ''); // remove display to default to css property
+            if (_this4.$arrows) {
+              _this4.$arrows.css('display', ''); // remove display to default to css property
 
             }
 
-            _this3._resize(img.width, img.height);
+            _this4._resize(img.width, img.height);
 
-            _this3.toggleLoading(false);
+            _this4.toggleLoading(false);
 
-            return _this3.config.onContentLoaded.call(_this3);
+            return _this4.config.onContentLoaded.call(_this4);
           };
 
           img.onerror = function () {
-            _this3.toggleLoading(false);
+            _this4.toggleLoading(false);
 
-            return _this3.error('failLoad', +src);
+            return _this4.error('failLoad', +src);
           };
         }
 
@@ -929,7 +955,7 @@ var Lightbox = function ($) {
     }, {
       key: "loadRemoteContent",
       value: function loadRemoteContent(url, $containerForElement) {
-        var _this4 = this;
+        var _this5 = this;
 
         var disableExternalCheck = this.$element.data('disableExternalCheck') || false;
         this.toggleLoading(false); // external urls are loading into an iframe
@@ -937,7 +963,7 @@ var Lightbox = function ($) {
 
         if (!disableExternalCheck && !this.isExternal(url)) {
           $containerForElement.load(url, $.proxy(function () {
-            return _this4.$element.trigger('loaded.bs.modal');
+            return _this5.$element.trigger('loaded.bs.modal');
           }));
         } else {
           $containerForElement.html("<iframe src=\"".concat(url, "\" frameborder=\"0\" allowfullscreen></iframe>"));
@@ -954,13 +980,13 @@ var Lightbox = function ($) {
     }], [{
       key: "_jQueryInterface",
       value: function _jQueryInterface(config) {
-        var _this5 = this;
+        var _this6 = this;
 
         config = config || {};
         return this.each(function () {
-          var $this = $(_this5);
+          var $this = $(_this6);
           var config = $.extend({}, Lightbox.__default, $this.data(), _typeof(config) === 'object' && config);
-          new Lightbox(_this5, config);
+          new Lightbox(_this6, config);
         });
       }
     }]);

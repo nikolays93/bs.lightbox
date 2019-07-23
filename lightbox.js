@@ -9,6 +9,8 @@ const Lightbox = (($) => {
         lang: 'ru',
         i18: {
             ru: {
+                prev: 'Назад',
+                next: 'Вперед',
                 close : 'Закрыть',
                 failLoad: 'Не удалось загрузить контент.',
                 undefinedType: 'Не удалось определить тип контента',
@@ -18,8 +20,8 @@ const Lightbox = (($) => {
         tpl: {
             title: 'Тестовый заголовок',
             preloader: '<div class="preloader"></div>',
-            leftArrow: '<button type="button"><span>&#10094;</span></button>',
-            rightArrow: '<button type="button"><span>&#10095;</span></button>',
+            leftArrow: '<button type="button" title="{{prev}}"><span>&#10094;</span></button>',
+            rightArrow: '<button type="button" title="{{next}}"><span>&#10095;</span></button>',
             close: '<button type="button" class="close" data-dismiss="modal" aria-label="{{close}}"><span aria-hidden="true">&times;</span></button>',
         },
 
@@ -59,21 +61,21 @@ const Lightbox = (($) => {
 
             this.modalId = 'modal-' + Math.floor((Math.random() * 1000) + 1); // this.config.id ||
 
-            this.header = this.config.tpl.close || '<div class="modal-header"><h5 class="mb-0">' + this.config.tpl.title + '</h5>' + this.config.tpl.close + '</div>';
+            this.header = this.config.tpl.close; // || '<div class="modal-header"><h5 class="mb-0">' + this.config.tpl.title + '</h5>' + this.config.tpl.close + '</div>';
             this.footer = ' ' || '<div class="modal-footer"></div>';
 
             this.tpl =
                 '<div class="modal lightbox fade" id="'+ this.modalId +'" tabindex="-1" role="dialog" aria-hidden="true">'
               + '   <div class="modal-dialog" role="document">' // modal-dialog-centered
               + '       <div class="modal-content">'
-              + '           ' + this.header
+              + '           ' + this.translate( this.header )
               + '           <div class="modal-body">'
               + '               <div class="modal-container">'
               + '                   <div class="modal-item fade in show"></div>'
               + '                   <div class="modal-item fade"></div>'
               + '               </div>'
               + '           </div>'
-              + '           ' + this.footer
+              + '           ' + this.translate( this.footer )
               + '       </div><!-- .modal-content -->'
               + '   </div>'
               + '</div>';
@@ -153,8 +155,10 @@ const Lightbox = (($) => {
         }
 
         getLangString(stringKey) {
-            if( this.config.i18[ this.config.lang ][ stringKey ] ) {
-                return this.config.i18[ this.config.lang ][ stringKey ];
+            let langArr = this.config.i18[ this.config.lang ] || this.config.i18.ru;
+
+            if( langArr[ stringKey ] ) {
+                return langArr[ stringKey ];
             }
 
             return stringKey
@@ -163,6 +167,12 @@ const Lightbox = (($) => {
                 .toLowerCase()
                 // uppercase the first character
                 .replace(/^./, function(str) { return str.toUpperCase(); })
+        }
+
+        translate(str) {
+            return str.replace(/\{\{(\w+)\}\}/g, (match, n1) => {
+                return this.getLangString(n1);
+            });
         }
 
         error(message, subMessage) {
@@ -430,7 +440,7 @@ const Lightbox = (($) => {
             if(!!show) {
                 this.$dialog.css('display', 'none');
                 this.$modal.removeClass('in show');
-                $('.modal-backdrop').append(this.config.tpl.preloader);
+                $('.modal-backdrop').append( this.translate(this.config.tpl.preloader) );
             }
             else {
                 this.$dialog.css('display', 'block');
@@ -489,18 +499,25 @@ const Lightbox = (($) => {
 
         _hotkeys(event) {
             event = event || window.event;
-            if (event.keyCode === 39 || event.keyCode === 32)
+            let key = event.keyCode || event.which;
+            // right arrow or space
+            if (key === 39 || key === 32) {
                 return this.navigateRight();
-            if (event.keyCode === 37 || event.keyCode === 8)
+            }
+            // left arrow or backspace
+            if (key === 37 || key === 8) {
                 return this.navigateLeft();
-            if (event.keyCode === 27)
+            }
+            // escape
+            if (key === 27) {
                 return this.close();
+            }
         }
 
         _arrows() {
             this.$container.append('<div class="navigations">'
-                + this.config.tpl.leftArrow
-                + this.config.tpl.rightArrow
+                + this.translate(this.config.tpl.leftArrow)
+                + this.translate(this.config.tpl.rightArrow)
                 + '</div>');
 
             this.$arrows = $('.navigations', this.$container);
@@ -591,7 +608,7 @@ const Lightbox = (($) => {
             if ($containerForImage) {
                 // if loading takes > 200ms show a loader
                 let loadingTimeout = setTimeout(() => {
-                    $containerForImage.append(this.config.tpl.preloader)
+                    $containerForImage.append( this.translate(this.config.tpl.preloader) )
                 }, 200)
 
                 img.onload = () => {
